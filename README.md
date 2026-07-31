@@ -7,11 +7,17 @@ Colab; converted here into a standalone, Railway-deployable web service.
 
 ## How it works
 
-1. User submits a lat/lon, start time, and forecast duration via the web form.
-2. The app picks HRRR (CONUS, 3km) or GFS (global, 25km) based on location,
-   then pulls only the needed GRIB2 fields directly from NOAA's public
-   AWS/GCS buckets using HTTP byte-range requests (no full file downloads,
-   no API key required).
+1. User submits a lat/lon, start time, forecast duration, and model choice
+   via the web form.
+2. The app pulls only the needed GRIB2 fields for the selected global model
+   directly from public AWS buckets using HTTP byte-range requests (no full
+   file downloads, no API key required):
+   - **GFS** (global, 25km) from NOAA's `noaa-gfs-bdp-pds` bucket.
+   - **ECMWF IFS** (global, 25km) open data from the `ecmwf-forecasts`
+     bucket. ECMWF open data does not publish surface visibility, cloud-base
+     height, or layered cloud cover, so those degrade gracefully to sane
+     defaults; total cloud cover drives the ceiling/sky logic and CAPE stands
+     in for the convective-precip flag.
 3. `cfgrib`/`xarray` decode the GRIB2 bytes; surface fields drive the
    NWSI 10-813 trigger logic (wind shift, visibility change, ceiling
    category change, etc.) that builds FM/TEMPO/PROB30 groups.
