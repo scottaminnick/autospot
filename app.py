@@ -1,5 +1,6 @@
 from flask import Flask, request, render_template_string, session, redirect, url_for
 import datetime
+import json
 import numpy as np
 import os
 import warnings
@@ -46,9 +47,8 @@ HTML_FORM = """
     <form action='/submit' method='post'>
         <label>Model Routing:</label>
         <select name='model_choice'>
-            <option value='AUTO'>Best Available (Auto-Detect)</option>
-            <option value='HRRR'>Force HRRR (CONUS 3km)</option>
-            <option value='GFS'>Force GFS (Global 25km)</option>
+            <option value='GFS'>GFS (Global 25km)</option>
+            <option value='ECMWF'>ECMWF IFS (Global 25km)</option>
         </select>
 
         <div class="flex-row">
@@ -437,50 +437,117 @@ def generate_meteogram(processed_taf, valid_start_time):
     return f"<h3>Forecaster Meteogram</h3><img src='data:image/png;base64,{encoded}' style='width:100%; max-width:900px; border:1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'/>"
 
 # --- CORE DATA FETCHER ---
-def get_best_model(lat, lon):
-    if 24.5 <= lat <= 50.0 and -125.0 <= lon <= -67.0: return "HRRR"
-    return "GFS"
+# Model routing. Both supported models are global and expose a single GRIB2
+# file per forecast step (surface + pressure levels together) on public AWS
+# buckets, fetched via HTTP byte-range requests. They differ in URL layout,
+# index format, longitude convention, and step granularity - captured here.
+MODEL_CYCLES = {
+    'GFS': ['18', '12', '06', '00'],
+    'ECMWF': ['18', '12', '06', '00'],
+}
+# Forecast step granularity (hours). GFS publishes hourly steps; ECMWF
+# open-data oper is 3-hourly, so every requested step must be a multiple of 3.
+MODEL_STEP_HOURS = {'GFS': 1, 'ECMWF': 3}
+
+# Per-model surface field specifications. GFS specs are wgrib2 '.idx'
+# substrings; ECMWF specs are dicts matched against the JSON index. A None spec
+# marks a field the model does not publish - handled with a default downstream.
+# ECMWF open data lacks visibility, cloud-base height, and layered (low/mid/
+# high) cloud cover, and has no convective-precip field (CAPE stands in).
+SFC_FIELDS = {
+    'u':       {'GFS': ":UGRD:10 m above ground:",  'ECMWF': {'param': '10u',    'levtype': 'sfc'}},
+    'v':       {'GFS': ":VGRD:10 m above ground:",  'ECMWF': {'param': '10v',    'levtype': 'sfc'}},
+    'gust':    {'GFS': ":GUST:surface:",            'ECMWF': {'param': '10fg',   'levtype': 'sfc'}},
+    'vis':     {'GFS': ":VIS:surface:",             'ECMWF': None},
+    'prate':   {'GFS': ":PRATE:surface:",           'ECMWF': {'param': 'tprate', 'levtype': 'sfc'}},
+    'cprat':   {'GFS': ":ACPCP:surface:",           'ECMWF': {'param': 'mucape', 'levtype': 'sfc'}},
+    'tcc':     {'GFS': ":TCDC:entire atmosphere:",  'ECMWF': {'param': 'tcc',    'levtype': 'sfc'}},
+    'cbh':     {'GFS': ":HGT:cloud base:",          'ECMWF': None},
+    'hgt_sfc': {'GFS': ":HGT:surface:",             'ECMWF': None},
+    'lcc':     {'GFS': [":LCDC:low cloud layer:", ":TCDC:low cloud layer:"],       'ECMWF': None},
+    'mcc':     {'GFS': [":MCDC:middle cloud layer:", ":TCDC:middle cloud layer:"], 'ECMWF': None},
+    'hcc':     {'GFS': [":HCDC:high cloud layer:", ":TCDC:high cloud layer:"],     'ECMWF': None},
+}
+
+# Winds-aloft pressure levels (ft -> mb). ECMWF open data has no 900/800 mb
+# levels, so the two lowest use the nearest available (925/850 mb).
+GRID_LVLS = {
+    'GFS':   {3000:900, 6000:800, 9000:700, 12000:600, 18000:500, 24000:400, 30000:300, 34000:250, 39000:200},
+    'ECMWF': {3000:925, 6000:850, 9000:700, 12000:600, 18000:500, 24000:400, 30000:300, 34000:250, 39000:200},
+}
+
+def aloft_spec(model, field, mb):
+    """Field spec for a winds-aloft variable ('t'/'u'/'v') at a pressure level."""
+    if model == 'ECMWF':
+        return {'param': field, 'levtype': 'pl', 'levelist': str(mb)}
+    return {'t': f":TMP:{mb} mb:", 'u': f":UGRD:{mb} mb:", 'v': f":VGRD:{mb} mb:"}[field]
+
+def build_grib_urls(model, date_str, cycle, fhour):
+    """Return (grib_url, index_url) for a model/cycle/forecast-hour."""
+    if model == 'ECMWF':
+        stem = (f"https://ecmwf-forecasts.s3.amazonaws.com/{date_str}/{cycle}z/ifs/"
+                f"0p25/oper/{date_str}{cycle}0000-{int(fhour)}h-oper-fc")
+        return f"{stem}.grib2", f"{stem}.index"
+    base = (f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{date_str}/{cycle}/"
+            f"atmos/gfs.t{cycle}z.pgrb2.0p25.f{int(fhour):03d}")
+    return base, f"{base}.idx"
+
+def parse_index(model, text):
+    """Normalise an index file's text into a list of records for byte lookup.
+    GFS -> list of raw wgrib2 '.idx' lines. ECMWF -> list of JSON dicts."""
+    if model == 'ECMWF':
+        recs = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line:
+                try: recs.append(json.loads(line))
+                except Exception: pass
+        return recs
+    return text.splitlines()
+
+def locate_bytes(model, records, field_spec):
+    """Find the (start_byte, end_byte) of a field within an index.
+    GFS field_spec is a list of substrings; ECMWF is a dict of index keys."""
+    if model == 'ECMWF':
+        for rec in records:
+            if all(str(rec.get(k)) == str(v) for k, v in field_spec.items()):
+                start = int(rec['_offset'])
+                return start, start + int(rec['_length']) - 1
+        return None, ''
+    search_strings = [field_spec] if isinstance(field_spec, str) else field_spec
+    for i, line in enumerate(records):
+        if any(s in line for s in search_strings):
+            start_byte = int(line.split(':')[1])
+            for j in range(i + 1, len(records)):
+                next_byte = int(records[j].split(':')[1])
+                if next_byte > start_byte:
+                    return start_byte, next_byte - 1
+            return start_byte, ''
+    return None, ''
 
 def get_latest_complete_run(model, max_fhour, session):
     now = datetime.datetime.now(datetime.timezone.utc)
-    cycles = ['18', '12', '06', '00'] if model == "GFS" else [f"{h:02d}" for h in range(23, -1, -1)]
-    url_template = "https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{date}/{cycle}/atmos/gfs.t{cycle}z.pgrb2.0p25.f{fhour}.idx" if model == "GFS" else "https://storage.googleapis.com/high-resolution-rapid-refresh/hrrr.{date}/conus/hrrr.t{cycle}z.wrfprsf{fhour}.grib2.idx"
+    cycles = MODEL_CYCLES[model]
 
     for day_offset in range(3):
         date_str = (now - datetime.timedelta(days=day_offset)).strftime('%Y%m%d')
         for cycle in cycles:
             if day_offset == 0 and int(cycle) > now.hour: continue
+            _, idx_url = build_grib_urls(model, date_str, cycle, max_fhour)
             try:
-                if session.head(url_template.format(date=date_str, cycle=cycle, fhour=max_fhour), timeout=5).status_code == 200:
+                if session.head(idx_url, timeout=5).status_code == 200:
                     return date_str, cycle
             except: continue
     return None, None
 
-def get_model_variable(target_lat, target_lon, date_str, cycle, fhour, search_strings, model, session, idx_cache):
+def get_model_variable(target_lat, target_lon, date_str, cycle, fhour, field_spec, model, session, idx_cache):
     warnings.filterwarnings("ignore")
-    if isinstance(search_strings, str): search_strings = [search_strings]
-    is_upper_air = any("mb:" in s for s in search_strings)
 
-    if model == "HRRR":
-        file_type = "wrfprs" if is_upper_air else "wrfsfc"
-        base_url = f"https://storage.googleapis.com/high-resolution-rapid-refresh/hrrr.{date_str}/conus/hrrr.t{cycle}z.{file_type}f{fhour}.grib2"
-    else:
-        base_url = f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{date_str}/{cycle}/atmos/gfs.t{cycle}z.pgrb2.0p25.f{fhour}"
+    base_url, idx_url = build_grib_urls(model, date_str, cycle, fhour)
+    records = idx_cache.get(idx_url, [])
+    if not records: return None
 
-    idx_url = f"{base_url}.idx"
-    lines = idx_cache.get(idx_url, [])
-    if not lines: return None
-
-    start_byte, end_byte = None, ''
-    for i, line in enumerate(lines):
-        if any(s in line for s in search_strings):
-            start_byte = int(line.split(':')[1])
-            for j in range(i + 1, len(lines)):
-                next_byte = int(lines[j].split(':')[1])
-                if next_byte > start_byte:
-                    end_byte = next_byte - 1
-                    break
-            break
+    start_byte, end_byte = locate_bytes(model, records, field_spec)
 
     if start_byte is not None:
         grib = None
@@ -525,8 +592,14 @@ def get_model_variable(target_lat, target_lon, date_str, cycle, fhour, search_st
                         y_dim, x_dim = ds[lat_key].dims
                         point = ds.isel({y_dim: y_idx, x_dim: x_idx}).load()
                     else:
-                        target_lon_360 = target_lon % 360
-                        point = ds.sel({lat_key: target_lat, lon_key: target_lon_360}, method="nearest").load()
+                        # Normalise the target longitude to the dataset's own
+                        # convention: GFS uses 0..360, ECMWF uses -180..180.
+                        lon_vals = ds[lon_key].values
+                        if float(np.nanmax(lon_vals)) > 180.0:
+                            tgt_lon = target_lon % 360
+                        else:
+                            tgt_lon = (target_lon + 180) % 360 - 180
+                        point = ds.sel({lat_key: target_lat, lon_key: tgt_lon}, method="nearest").load()
                     ds.close()
                     return {'data': point, 'cycle': f"{date_str} {cycle}Z", 'model': model}
                 ds.close()
@@ -605,7 +678,7 @@ def submit():
         lat = float(request.form.get('latitude', 39.1))
         lon = float(request.form.get('longitude', -94.6))
         sar_name = request.form.get('sar_name', 'AUTO-SPOT')
-        selected_model = request.form.get('model_choice', 'AUTO')
+        selected_model = request.form.get('model_choice', 'GFS')
         duration = int(request.form.get('duration', 24))
 
         user_date_str = request.form.get('start_date')
@@ -619,105 +692,65 @@ def submit():
         except:
             taf_start_time = datetime.datetime.now(datetime.timezone.utc).replace(minute=0, second=0, microsecond=0)
 
-        active_model = get_best_model(lat, lon) if selected_model == 'AUTO' else selected_model
-        lon_gfs = 360 + lon if lon < 0 else lon
-        target_lon = lon_gfs if active_model == 'GFS' else lon
-        pad = 3 if active_model == 'GFS' else 2
+        active_model = selected_model if selected_model in ('GFS', 'ECMWF') else 'GFS'
+        step_gran = MODEL_STEP_HOURS[active_model]
+        # GFS grid is 0..360; ECMWF is -180..180 (native signed longitude).
+        target_lon = (360 + lon if lon < 0 else lon) if active_model == 'GFS' else lon
+        grid_lvls = GRID_LVLS[active_model]
 
         results = {}
         with requests.Session() as session:
             retry = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
             session.mount("https://", HTTPAdapter(pool_connections=40, pool_maxsize=40, max_retries=retry))
 
-            sentry_hour = min(duration, 18) if active_model == 'HRRR' else duration
-            run_date, run_cycle = get_latest_complete_run(active_model, f"{sentry_hour:0{pad}d}", session)
+            # Sentry step confirms a run is published far enough out to cover the
+            # whole request; nudge past the last needed step by one granule.
+            sentry_hour = duration + step_gran
+            run_date, run_cycle = get_latest_complete_run(active_model, sentry_hour, session)
             if not run_date: return f"<html><body><h3>Error: Upstream synchronization in progress. Please try again.</h3></body></html>", 500
 
             model_init_time = datetime.datetime.strptime(f"{run_date}{run_cycle}", "%Y%m%d%H").replace(tzinfo=datetime.timezone.utc)
-            gfs_sentry_hour = duration + 24
-            gfs_run_date, gfs_run_cycle = get_latest_complete_run('GFS', f"{gfs_sentry_hour:03d}", session)
-            if gfs_run_date:
-                gfs_init_time = datetime.datetime.strptime(f"{gfs_run_date}{gfs_run_cycle}", "%Y%m%d%H").replace(tzinfo=datetime.timezone.utc)
-            else:
-                gfs_init_time = model_init_time
-                gfs_run_date, gfs_run_cycle = run_date, run_cycle
 
-            hour_offset = max(0, int((taf_start_time - model_init_time).total_seconds() / 3600))
+            # Snap the start offset to the model's step granularity so every
+            # requested forecast step actually exists (ECMWF is 3-hourly).
+            raw_offset = max(0, (taf_start_time - model_init_time).total_seconds() / 3600)
+            hour_offset = int(round(raw_offset / step_gran) * step_gran)
             taf_hours = [hour_offset + i for i in range(0, duration + 1, 3)]
             fd_hours = [hour_offset + i for i in range(0, duration + 1, 6)]
 
             tasks = []
             for h in taf_hours:
-                valid_time = model_init_time + datetime.timedelta(hours=h)
-                model_route = 'GFS' if h > 18 and active_model == 'HRRR' else active_model
+                for key, spec_map in SFC_FIELDS.items():
+                    spec = spec_map[active_model]
+                    if spec is None: continue
+                    tasks.append((lat, target_lon, run_date, run_cycle, h, spec, f"{key}_{h}"))
 
-                if model_route == 'GFS':
-                    task_date, task_cycle = gfs_run_date, gfs_run_cycle
-                    task_fh = f"{int((valid_time - gfs_init_time).total_seconds() / 3600):03d}"
-                    task_lon = lon_gfs
-                else:
-                    task_date, task_cycle = run_date, run_cycle
-                    task_fh = f"{h:02d}"
-                    task_lon = target_lon
-
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":UGRD:10 m" if model_route != 'GFS' else ":UGRD:10 m above ground:", f"u_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":VGRD:10 m" if model_route != 'GFS' else ":VGRD:10 m above ground:", f"v_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":GUST:surface:", f"gust_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":VIS:surface:", f"vis_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":PRATE:surface:", f"prate_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":CPRAT:surface:" if model_route != 'GFS' else ":ACPCP:surface:", f"cprat_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":TCDC:entire atmosphere:", f"tcc_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":HGT:cloud base:", f"cbh_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, ":HGT:surface:", f"hgt_sfc_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, [":LCDC:low cloud layer:", ":TCDC:low cloud layer:"], f"lcc_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, [":MCDC:middle cloud layer:", ":TCDC:middle cloud layer:"], f"mcc_{h}", model_route))
-                tasks.append((lat, task_lon, task_date, task_cycle, task_fh, [":HCDC:high cloud layer:", ":TCDC:high cloud layer:"], f"hcc_{h}", model_route))
-
-            grid_lvls = {3000:900, 6000:800, 9000:700, 12000:600, 18000:500, 24000:400, 30000:300, 34000:250, 39000:200}
             for h in fd_hours:
-                valid_time = model_init_time + datetime.timedelta(hours=h)
-                model_route = 'GFS' if h > 18 and active_model == 'HRRR' else active_model
-                if model_route == 'GFS':
-                    task_date, task_cycle = gfs_run_date, gfs_run_cycle
-                    task_fh = f"{int((valid_time - gfs_init_time).total_seconds() / 3600):03d}"
-                    task_lon = lon_gfs
-                else:
-                    task_date, task_cycle = run_date, run_cycle
-                    task_fh = f"{h:02d}"
-                    task_lon = target_lon
-
                 for ft, mb in grid_lvls.items():
-                    tasks.append((lat, task_lon, task_date, task_cycle, task_fh, f":TMP:{mb} mb:", f"t_{h}_{ft}", model_route))
-                    tasks.append((lat, task_lon, task_date, task_cycle, task_fh, f":UGRD:{mb} mb:", f"u_{h}_{ft}", model_route))
-                    tasks.append((lat, task_lon, task_date, task_cycle, task_fh, f":VGRD:{mb} mb:", f"v_{h}_{ft}", model_route))
+                    for field in ('t', 'u', 'v'):
+                        tasks.append((lat, target_lon, run_date, run_cycle, h, aloft_spec(active_model, field, mb), f"{field}_{h}_{ft}"))
 
             idx_cache = {}
             def prefetch(url):
                 try:
                     for _ in range(2):
                         r = session.get(url, timeout=10)
-                        if r.status_code == 200: return url, r.text.splitlines()
+                        if r.status_code == 200: return url, parse_index(active_model, r.text)
                         time.sleep(0.5)
                 except: pass
                 return url, []
 
             urls_to_fetch = set()
             for task in tasks:
-                search_strings, model_route, task_date, task_cycle, task_fh = task[5], task[7], task[2], task[3], task[4]
-                if isinstance(search_strings, str): search_strings = [search_strings]
-                is_upper_air = any("mb:" in s for s in search_strings)
-                if model_route == "HRRR":
-                    file_type = "wrfprs" if is_upper_air else "wrfsfc"
-                    base_url = f"https://storage.googleapis.com/high-resolution-rapid-refresh/hrrr.{task_date}/conus/hrrr.t{task_cycle}z.{file_type}f{task_fh}.grib2"
-                else:
-                    base_url = f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{task_date}/{task_cycle}/atmos/gfs.t{task_cycle}z.pgrb2.0p25.f{task_fh}"
-                urls_to_fetch.add(f"{base_url}.idx")
+                _, idx_url = build_grib_urls(active_model, task[2], task[3], task[4])
+                urls_to_fetch.add(idx_url)
 
             with ThreadPoolExecutor(max_workers=10) as ex:
-                for url, lines in ex.map(prefetch, urls_to_fetch): idx_cache[url] = lines
+                for url, recs in ex.map(prefetch, urls_to_fetch): idx_cache[url] = recs
 
             def worker(args):
-                return args[6], get_model_variable(args[0], args[1], args[2], args[3], args[4], args[5], args[7], session, idx_cache)
+                lat_, lon_, date_, cyc_, fh_, spec_, key_ = args
+                return key_, get_model_variable(lat_, lon_, date_, cyc_, fh_, spec_, active_model, session, idx_cache)
 
             with ThreadPoolExecutor(max_workers=35) as executor:
                 for k, r in executor.map(worker, tasks):
@@ -726,21 +759,31 @@ def submit():
         true_elev_user = get_usgs_elevation(lat, lon)
         final_true_elev = 0
 
+        # ECMWF reports total cloud cover as a 0-1 fraction; GFS as a percent.
+        tcc_scale = 100.0 if active_model == 'ECMWF' else 1.0
         processed_taf = []
         for h in taf_hours:
             u_r, v_r, tcc_r, vis_r = results.get(f"u_{h}"), results.get(f"v_{h}"), results.get(f"tcc_{h}"), results.get(f"vis_{h}")
-            if all([u_r, v_r, tcc_r, vis_r]):
+            if all([u_r, v_r, tcc_r]):
                 u = list(u_r['data'].data_vars.values())[0].item()
                 v = list(v_r['data'].data_vars.values())[0].item()
-                tcc = list(tcc_r['data'].data_vars.values())[0].item()
-                vis = list(vis_r['data'].data_vars.values())[0].item()
+                tcc = list(tcc_r['data'].data_vars.values())[0].item() * tcc_scale
+                # Visibility is absent from ECMWF open data; default to
+                # unrestricted (>6SM) when the field is unavailable.
+                vis = list(vis_r['data'].data_vars.values())[0].item() if vis_r else 9999.0
                 spd = int(np.hypot(u, v) * 1.94384)
                 dr = int((np.degrees(np.arctan2(u, v)) + 180 + 360) % 360)
                 gust_r = results.get(f"gust_{h}")
                 gust = (list(gust_r['data'].data_vars.values())[0].item() * 1.94384) if gust_r else 0
                 prate_r, cprat_r = results.get(f"prate_{h}"), results.get(f"cprat_{h}")
                 prate = list(prate_r['data'].data_vars.values())[0].item() if prate_r else 0
-                is_conv = True if (cprat_r and list(cprat_r['data'].data_vars.values())[0].item() > 0) else False
+                # Convection flag: GFS keys off convective precip accumulation;
+                # ECMWF has no such field, so most-unstable CAPE stands in.
+                conv_val = list(cprat_r['data'].data_vars.values())[0].item() if cprat_r else 0
+                if active_model == 'ECMWF':
+                    is_conv = conv_val >= 300 and prate > 0
+                else:
+                    is_conv = conv_val > 0
 
                 hgt_sfc_r = results.get(f"hgt_sfc_{h}")
                 model_elev_ft = (list(hgt_sfc_r['data'].data_vars.values())[0].item() * 3.28084) if hgt_sfc_r else 0
@@ -780,8 +823,6 @@ def submit():
                     grid_res[h][ft] = {'temp': t, 'wspd': np.hypot(u,v)*1.94, 'wdir': (np.degrees(np.arctan2(u,v))+180)%360}
 
         cycle_label = f"{active_model} {run_date} {run_cycle}Z"
-        if active_model == 'HRRR' and (taf_hours[-1] > 18):
-            cycle_label = f"HRRR/GFS BLEND {run_date} {run_cycle}Z"
 
         taf_engine = FirstGuessTAF(sar_name, lat, lon, processed_taf, grid_res, cycle_label, duration, final_true_elev)
         final_report = taf_engine.generate_report(taf_start_time)
