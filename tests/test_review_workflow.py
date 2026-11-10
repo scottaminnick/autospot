@@ -198,7 +198,7 @@ class WebReviewTests(unittest.TestCase):
         page = self.client.get(url, base_url=BASE)
         self.assertEqual(page.status_code, 200)
         self.assertIn("23020G35KT P6SM OVC025", page.text)
-        self.assertIn("not yet available", page.text)
+        self.assertIn("Finalize saved version", page.text)
         self.assertNotIn("[VISIBILITY REQUIRED]", page.text)
 
     def test_conditional_group_ui_datetime_inputs_and_atomic_bad_input(self):
