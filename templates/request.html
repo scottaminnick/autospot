@@ -7,10 +7,11 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="model">Model guidance</label>
     <select id="model" name="model_choice">
-      {% for model in ['ECMWF', 'GFS'] %}
+      {% for model in ['ECMWF'] %}
       <option value="{{ model }}" {% if values.model_choice == model %}selected{% endif %}>{{ model }} (global 0.25°)</option>
       {% endfor %}
     </select>
+    <p>GFS guidance is temporarily unavailable while its data adapter is validated.</p>
     <div class="flex-row">
       <div class="flex-col">
         <label for="latitude">Latitude (negative for south)</label>

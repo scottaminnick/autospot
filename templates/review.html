@@ -3,17 +3,39 @@
 {% block content %}
 <main class="report-wrap">
   <h1>Forecaster review and edit</h1>
-  <p class="notice">Draft guidance: review all weather elements and valid times against source guidance before use.</p>
+  <p class="notice">Incomplete first guess: complete visibility, weather and sky using reviewed guidance. This feed does not provide visibility or cloud-base heights. Verify the location's service domain before use.</p>
+  {% if data %}
+  <p>Model: ECMWF IFS {{ data.grid }}. Cycle: {{ data.cycle_utc }}.<br>
+     Requested UTC period: {{ data.start_utc }} to {{ data.end_utc }}.</p>
+  <p>Field quality: {{ data.counts.direct }} direct; {{ data.counts.missing }} missing;
+     {{ data.counts.invalid }} invalid; {{ data.counts.unsupported }} unsupported.</p>
+  {% endif %}
   <form action="{{ url_for('web.transmit') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="taf_content">Spot forecast text</label>
     <textarea id="taf_content" name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
-    <button type="submit" class="btn-transmit">Download edited report</button>
+    <button type="submit" class="btn-transmit">Download edited draft</button>
   </form>
   {% if chart %}
   <h2>Original model guidance</h2>
   <p>Text edits do not change this chart.</p>
   <img class="meteogram" src="data:image/png;base64,{{ chart }}" alt="Original model guidance time series">
+  {% endif %}
+  {% if guidance %}
+  <h2>Verified native-time guidance</h2>
+  <p>Support-only rows bracket the requested period. Values are nearest-grid-point samples; no time interpolation is applied.</p>
+  <table>
+    <thead><tr><th>UTC valid time</th><th>Wind</th><th>Gust maximum (kt) / UTC interval</th><th>Total cloud (%)</th><th>Instant precipitation (mm/h)</th><th>Source / unresolved fields</th></tr></thead>
+    <tbody>{% for row in guidance %}<tr>
+      <td>{{ row.valid_utc }}{% if row.support_only %} (support only){% endif %}</td>
+      <td>{{ row.wind if row.wind is not none else 'Missing' }}</td>
+      <td>{% if row.gust is not none %}{{ '%.1f'|format(row.gust) }}<br>{{ row.gust_interval[0] }} to {{ row.gust_interval[1] }}{% else %}Unavailable{% endif %}</td>
+      <td>{{ '%.1f'|format(row.cloud) if row.cloud is not none else 'Missing' }}</td>
+      <td>{{ '%.3f'|format(row.rate) if row.rate is not none else 'Missing' }}</td>
+      <td>{{ row.providers|join(', ') }}<br>{{ row.problems|join('; ') }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  <details><summary>All field values, quality and source metadata</summary><pre>{{ data|tojson(indent=2) }}</pre></details>
   {% endif %}
 </main>
 {% endblock %}

@@ -1,20 +1,20 @@
 # AutoSpot — aviation spot forecast drafts
 
-AutoSpot generates an editable point forecast for forecaster review. ECMWF IFS
-is the preferred/default model; GFS is an explicit alternate choice. The local
-AWC spot procedure defines the intended TAF-format output and optional FL winds.
+AutoSpot retrieves verified ECMWF IFS point guidance and prepares an editable
+aviation spot draft. The forecaster completes visibility, weather and sky using
+reviewed guidance and follows the existing AWC coordination/archive workflow.
 
-The rebuild is being delivered in focused PRs. [Phase 0](docs/phase0/README.md)
-defines the product and preserves reference data. [PR 1](docs/pr1-foundation.md)
-adds request validation, escaped templates, session/security controls, reproducible
-runtime dependencies, error handling and CI.
+[Phase 0](docs/phase0/README.md) defines the product and freezes reference data.
+[PR 1](docs/pr1-foundation.md) adds web/session security and locked dependencies.
+[PR 2](docs/pr2-ecmwf-pipeline.md) replaces retrieval with validated fields,
+bounded downloading, shared positive caching and same-run provider fallback.
 
-**Meteorological repairs are still in progress.** The existing acquisition and
-forecast logic retain the audit's missing-field defaults, approximate flight-level
-mapping, timing and weather-coding issues. Review all elements against source
-guidance. This foundation PR does not establish forecast accuracy or complete the
-ECMWF pipeline rebuild. ECMWF cloud-layer fractions and precipitation type are
-available in the checked feed but are not yet integrated into the legacy path.
+The current path supports ECMWF IFS 0.25°. GFS is unavailable until its adapter
+passes the same contracts. Missing visibility/cloud bases do not become normal
+weather values: the draft contains explicit completion prompts. Automatic weather
+coding, time/FL interpolation, operational domain gating and finalization/version
+tracking remain later rebuild work. Aloft output is withheld pending correct FL
+handling in PR 3; pressure-field decode contracts are available for that work.
 
 ## Install and test
 
@@ -39,6 +39,7 @@ public advisory database; passing means no *known* listed vulnerability was foun
 | `APP_PASSWORD` | Shared login password; changing it invalidates existing sessions. |
 | `SECRET_KEY` | Stable random signing key, at least 32 characters; identical across workers. |
 | `AUTOSPOT_SECURITY_DB` | Optional security-state file, default `/tmp/autospot-state/security.sqlite3`. Workers in one replica must share this path. |
+| `AUTOSPOT_FORECAST_CACHE` | Optional bounded forecast-cache file, default `/tmp/autospot-state/forecast-cache.sqlite3`. |
 | `AUTOSPOT_TRUST_PROXY_HOPS` | Default `0`. Set only after verifying the actual trusted proxy chain; controls forwarded client IP/protocol handling. |
 
 HTTPS is required by default: session cookies are Secure, HttpOnly and SameSite
@@ -67,8 +68,8 @@ Production rollout remains a separate step after staging review.
 
 ## Forecaster workflow
 
-1. Sign in and request a location, UTC start, duration (1–72 hours), and model.
-2. Review and edit the draft and original model guidance.
+1. Sign in and request a location, UTC start and duration (1–72 hours).
+2. Review source times, field quality and original model guidance; complete and edit the draft.
 3. Download the edited report as UTF-8 text and use the established coordination
    and NAOC archive workflow. The download does not send or archive a report.
 

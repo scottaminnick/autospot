@@ -1,0 +1,81 @@
+{
+  "checked_date": "2026-11-10",
+  "environment": "local Python 3.12.14, locked PR 1 dependencies; not a Railway benchmark",
+  "original_bahamas_request": [
+    {
+      "check": "cold",
+      "elapsed_seconds": 34.551,
+      "checked_at": "2026-11-10T07:29:06.893476+00:00",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "request_start_utc": "2026-11-09T12:00:00+00:00",
+      "request_end_utc": "2026-11-10T12:00:00+00:00",
+      "counts": {
+        "direct": 144,
+        "derived": 0,
+        "manual": 0,
+        "unsupported": 27,
+        "missing": 0,
+        "invalid": 0,
+        "not_applicable": 0
+      },
+      "cache_hits": 0,
+      "providers": {
+        "ecmwf": 144
+      },
+      "failure_reasons": {},
+      "diagnostics": [],
+      "complete_forecast": false,
+      "retained_raw_messages_matched": 7,
+      "retained_raw_messages_mismatched": 0
+    },
+    {
+      "check": "warm",
+      "elapsed_seconds": 0.083,
+      "checked_at": "2026-11-10T07:29:06.978159+00:00",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "request_start_utc": "2026-11-09T12:00:00+00:00",
+      "request_end_utc": "2026-11-10T12:00:00+00:00",
+      "counts": {
+        "direct": 144,
+        "derived": 0,
+        "manual": 0,
+        "unsupported": 27,
+        "missing": 0,
+        "invalid": 0,
+        "not_applicable": 0
+      },
+      "cache_hits": 144,
+      "providers": {
+        "ecmwf": 144
+      },
+      "failure_reasons": {},
+      "diagnostics": [],
+      "complete_forecast": false,
+      "retained_raw_messages_matched": 7,
+      "retained_raw_messages_mismatched": 0
+    }
+  ],
+  "google_live_failover": {
+    "first_two_providers": "deliberately failed by the test transport",
+    "actual_provider": "google",
+    "model": "ECMWF_IFS",
+    "cycle_utc": "2026-11-09T00:00:00+00:00",
+    "step_hours": 12,
+    "field": "10u",
+    "value_m_per_s": -2.45025634765625,
+    "message_sha256": "27845d188ca1d1cb9f48f07239c3bc2136924d03a457434d87934b38bd7c9b8a",
+    "matched_retained_message": true
+  },
+  "https_web_smoke": {
+    "result": "passed",
+    "request_start_utc": "2026-11-10T08:00:00+00:00",
+    "duration_hours": 3,
+    "elapsed_seconds": 67.806,
+    "workers": 2,
+    "worker_starts_including_recycling": 6,
+    "authenticated_requests_across_recycling": 20,
+    "manual_visibility_and_sky_preserved": true,
+    "utf8_attachment": "passed",
+    "cookie_replay_after_logout": "rejected"
+  }
+}
