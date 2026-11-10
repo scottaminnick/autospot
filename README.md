@@ -102,3 +102,13 @@ cloud fractions provide context; unsupported diagnoses are not invented.
 Temporary, session-owned workspaces retain original guidance across worker
 recycling and reject stale-tab writes. Downloads remain editable drafts.
 See [PR 4 behavior, validation and limits](docs/pr4-reviewed-spot-forecast.md).
+
+## PR 5: saved-version approval and archive downloads
+
+Save and review the forecast body, then finalize that exact version with an
+explicit forecaster and coordination attestation. Edits/rebuilds create a new
+draft and invalidate old approval/download links. Approved UTF-8 text and the
+ZIP share one saved snapshot. The ZIP includes original guidance, manual/derived
+quality and provenance, separate model/forecast charts and file checksums for
+the established NAOC archive process. Downloads do not transmit or archive a
+forecast. See [PR 5 behavior, text grammar, validation and limits](docs/pr5-finalization-archive.md).

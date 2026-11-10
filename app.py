@@ -45,6 +45,15 @@ from weather.domain import location_map
 from weather.aviation import ElementError
 from weather.product import initialize_product, apply_elements, editor_rows
 from weather.reviews import ReviewStore, ReviewMissing, ReviewConflict, ReviewFull
+from weather.document import (
+    body_from_product,
+    new_document,
+    preview_text,
+    parse_body,
+    FinalizationError,
+)
+from weather.exports import prepare_finalization, provenance_record, archive_package
+from weather.charts import reviewed_chart, ceiling_series
 
 web = Blueprint("web", __name__)
 
@@ -160,13 +169,17 @@ def submit():
     )
     report, image, data = generate_forecast(forecast)
     if data:
+        workspace = {
+            "data": data,
+            "label": forecast.label,
+            "product": initialize_product(data),
+        }
+        workspace["document"] = new_document(
+            body_from_product(workspace), 1, "structured"
+        )
         identifier = current_app.extensions["reviews"].create(
             g.auth_sid,
-            {
-                "data": data,
-                "label": forecast.label,
-                "product": initialize_product(data),
-            },
+            workspace,
         )
         return redirect(url_for("web.review", identifier=identifier), code=303)
     return render_template(
@@ -251,12 +264,42 @@ def review(identifier):
         workspace["product"] = apply_elements(
             workspace["product"], entries, groups, data["start_utc"], data["end_utc"]
         )
+        workspace["document"] = new_document(
+            body_from_product(workspace), revision + 1, "structured"
+        )
+        workspace.pop("finalization", None)
         store.save(identifier, g.auth_sid, revision, workspace)
         return redirect(url_for("web.review", identifier=identifier), code=303)
     data = workspace["data"]
+    document = workspace.get("document")
+    final = workspace.get("finalization")
+    forecast = (
+        final["forecast"]
+        if final
+        else {
+            "rows": [
+                {"valid_utc": r["valid_utc"], "sky": r["sky"]["value"]}
+                for r in workspace["product"]["rows"]
+            ],
+            "groups": workspace["product"]["groups"],
+        }
+    )
+    forecast_basis = (
+        "Approved saved text"
+        if final
+        else "Structured element review; saved text is not yet validated"
+    )
+    text_validated = bool(final)
+    if not final and document:
+        try:
+            forecast = parse_body(document["body"], data)
+            forecast_basis = "Saved text draft; not yet finalized"
+            text_validated = True
+        except FinalizationError:
+            pass
     return render_template(
         "review.html",
-        report=build_draft(data, workspace["label"], workspace["product"]),
+        report=document["body"] if document else body_from_product(workspace),
         chart=chart(data),
         data=data,
         guidance=guidance_rows(data),
@@ -268,6 +311,121 @@ def review(identifier):
         product=workspace["product"],
         editor=editor_rows(workspace["product"]),
         group_editor=conditional_editor(workspace["product"]["groups"]),
+        document=document,
+        finalization=final,
+        candidate_text=preview_text(workspace, identifier) if document else None,
+        forecast_chart=reviewed_chart(
+            data,
+            forecast,
+            identifier,
+            document["version"] if document else revision,
+            bool(final),
+            basis=forecast_basis,
+        ),
+        forecast_ceiling=ceiling_series(forecast),
+        forecast_basis=forecast_basis,
+        text_validated=text_validated,
+    )
+
+
+@web.route("/review/<identifier>/text", methods=["POST"])
+@login_required
+def save_text(identifier):
+    require_csrf()
+    rate_limit([("review_text_session", g.auth_sid, 20, 60)])
+    store = current_app.extensions["reviews"]
+    revision, workspace = store.get(identifier, g.auth_sid)
+    if single(request.form, "revision", "") != str(revision):
+        raise ReviewConflict()
+    body = validate_report(request.form)
+    action = single(request.form, "action", "save")
+    if action not in {"save", "draft", "finalize"}:
+        raise RequestValidationError("Choose a valid text action.")
+    current = workspace.get("document")
+    if action == "finalize":
+        if not current or body != current["body"]:
+            raise FinalizationError(
+                "Save text changes as a new draft, review that saved version, then finalize."
+            )
+        if not workspace.get("finalization"):
+            workspace["finalization"] = prepare_finalization(
+                workspace,
+                identifier,
+                revision,
+                single(request.form, "approve", "") == "yes",
+                single(request.form, "service_disposition", "pending"),
+                single(request.form, "coordination_note", ""),
+            )
+            store.save(identifier, g.auth_sid, revision, workspace)
+        return redirect(url_for("web.review", identifier=identifier), code=303)
+    if not current or body != current["body"] or workspace.get("finalization"):
+        workspace["document"] = new_document(body, revision + 1)
+        workspace.pop("finalization", None)
+        store.save(identifier, g.auth_sid, revision, workspace)
+    if action == "draft":
+        text = "DRAFT — NOT FINALIZED\n" + preview_text(workspace, identifier)
+        return text_attachment(
+            text, f"DRAFT_SPOT_{identifier[:8]}_v{workspace['document']['version']}.txt"
+        )
+    return redirect(url_for("web.review", identifier=identifier), code=303)
+
+
+def approved_workspace(identifier, version):
+    _, workspace = current_app.extensions["reviews"].get(identifier, g.auth_sid)
+    final = workspace.get("finalization")
+    if (
+        not final
+        or final["approved_version"] != version
+        or workspace["document"]["version"] != version
+    ):
+        raise ReviewConflict()
+    provenance_record(workspace, identifier)
+    return workspace
+
+
+def text_attachment(text, filename):
+    return send_file(
+        io.BytesIO(text.encode("utf-8")),
+        mimetype="text/plain",
+        as_attachment=True,
+        download_name=filename,
+        max_age=0,
+    )
+
+
+@web.route("/review/<identifier>/final/<int:version>.txt")
+@login_required
+def final_text(identifier, version):
+    workspace = approved_workspace(identifier, version)
+    rate_limit([("export_session", g.auth_sid, 30, 60)])
+    return text_attachment(
+        workspace["finalization"]["text"], f"SPOT_{identifier[:8]}_v{version}.txt"
+    )
+
+
+@web.route("/review/<identifier>/final/<int:version>.zip")
+@login_required
+def final_package(identifier, version):
+    workspace = approved_workspace(identifier, version)
+    rate_limit([("package_session", g.auth_sid, 10, 60)])
+    content = archive_package(
+        workspace,
+        identifier,
+        chart(workspace["data"]),
+        reviewed_chart(
+            workspace["data"],
+            workspace["finalization"]["forecast"],
+            identifier,
+            version,
+            True,
+        ),
+    )
+    return send_file(
+        io.BytesIO(content),
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"SPOT_{identifier[:8]}_v{version}.zip",
+        max_age=0,
     )
 
 
@@ -304,7 +462,7 @@ def transmit():
     final_taf = validate_report(request.form)
     rate_limit([("export_session", g.auth_sid, 30, 60)])
     # Direct attachment preserves the exact UTF-8 text and removes the HTML/JS sink.
-    filename = f"SPOT_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%SZ')}.txt"
+    filename = f"DRAFT_SPOT_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%SZ')}.txt"
     return send_file(
         io.BytesIO(final_taf.encode("utf-8")),
         mimetype="text/plain",
@@ -366,6 +524,10 @@ def create_app(test_config=None):
 
     @application.errorhandler(ElementError)
     def invalid_element(error):
+        return render_template("error.html", message=str(error)), 400
+
+    @application.errorhandler(FinalizationError)
+    def invalid_finalization(error):
         return render_template("error.html", message=str(error)), 400
 
     @application.errorhandler(ReviewMissing)

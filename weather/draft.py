@@ -159,7 +159,9 @@ def chart(data):
     figure.suptitle(
         f"ECMWF IFS 0.25° — original model guidance\n"
         f"{data['latitude']:.4f}, {data['longitude']:.4f} | Cycle {data['cycle_utc']}\n"
-        f"Requested {data['start_utc']} to {data['end_utc']}",
+        f"Requested {data['start_utc']} to {data['end_utc']}\n"
+        f"Native quality: {data.get('counts', {}).get('direct', 0)} direct / {data.get('counts', {}).get('missing', 0)} missing / "
+        f"{data.get('counts', {}).get('unsupported', 0)} unsupported / {data.get('counts', {}).get('invalid', 0)} invalid; ceiling unavailable from this feed",
         fontsize=9,
     )
     buffer = io.BytesIO()
