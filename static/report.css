@@ -17,3 +17,6 @@
 .meteogram { width: 100%; max-width: 900px; border: 1px solid #ccc; }
 .nav { max-width: 950px; margin: auto; display: flex; justify-content: space-between; align-items: center; }
 .nav form { display: inline; }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { border: 1px solid #ccc; padding: 6px; text-align: left; vertical-align: top; }
+details pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }

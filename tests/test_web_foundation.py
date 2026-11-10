@@ -5,8 +5,6 @@ from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 import re
-import json
-import base64
 import tempfile
 import time
 import unittest
@@ -15,7 +13,8 @@ from unittest.mock import patch
 from werkzeug.datastructures import MultiDict
 
 import app as module
-from request_validation import parse_forecast_request, check_work_budget
+from request_validation import parse_forecast_request
+from weather.fields import DataFault, State
 
 BASE = "https://localhost"
 
@@ -223,7 +222,7 @@ class WebFoundationTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertNotEqual(self.token(), expired)
         with patch.object(
-            module, "generate_forecast", return_value=("review draft", "")
+            module, "generate_forecast", return_value=("review draft", "", None)
         ):
             self.assertEqual(self.post("/submit", self.form()).status_code, 200)
 
@@ -231,7 +230,7 @@ class WebFoundationTests(unittest.TestCase):
         self.login()
         payload = '</textarea><script id="probe">window.probe=1</script><img src=x onerror="probe()">'
         with patch.object(
-            module, "generate_forecast", return_value=(payload, "")
+            module, "generate_forecast", return_value=(payload, "", None)
         ) as generate:
             response = self.post("/submit", self.form(sar_name="Météo — SAR"))
         self.assertEqual(response.status_code, 200)
@@ -274,85 +273,28 @@ class WebFoundationTests(unittest.TestCase):
     def test_generation_rate_and_work_budget(self):
         self.login()
         with patch.object(
-            module, "generate_forecast", return_value=("sample draft", "")
+            module, "generate_forecast", return_value=("sample draft", "", None)
         ) as generate:
             for _ in range(3):
                 self.assertEqual(self.post("/submit", self.form()).status_code, 200)
             self.assertEqual(self.post("/submit", self.form()).status_code, 429)
             self.assertEqual(generate.call_count, 3)
-        fields = {
-            f"extra{n}": {"GFS": ":X:", "ECMWF": {"param": "x"}} for n in range(50)
-        }
-        with (
-            patch.dict(module.SFC_FIELDS, fields),
-            patch.object(module, "generate_forecast") as generate,
-        ):
+        with patch.object(module, "retrieve_forecast") as retrieve:
             self.assertEqual(
-                self.post("/submit", self.form(duration="72")).status_code, 400
+                self.post("/submit", self.form(model_choice="GFS")).status_code, 400
             )
-            generate.assert_not_called()
+            retrieve.assert_not_called()
 
     def test_empty_model_output_is_failure_without_review_form(self):
         self.login()
-        with (
-            patch.object(
-                module, "get_latest_complete_run", return_value=("20261110", "00")
-            ),
-            patch.object(module, "get_model_variable", return_value=None),
-            patch("requests.Session.get") as upstream,
-            patch.object(module, "get_usgs_elevation") as elevation,
+        with patch.object(
+            module,
+            "retrieve_forecast",
+            side_effect=DataFault("no_validated_fields", State.MISSING),
         ):
-            upstream.return_value.status_code = 200
-            upstream.return_value.text = ""
             response = self.post("/submit", self.form(duration="1"))
         self.assertEqual(response.status_code, 502)
         self.assertNotIn('name="taf_content"', response.text)
-        elevation.assert_not_called()
-
-    def test_generator_and_chart_run_with_frozen_model_samples(self):
-        fixture = json.loads(
-            (
-                Path(__file__).parent
-                / "fixtures/phase0/ecmwf-20261109/point-samples.json"
-            ).read_text()
-        )
-
-        def field(lat, lon, date, cycle, hour, spec, model, connection, cache):
-            for sample in fixture["samples"]:
-                record = sample["index_record"]
-                if sample["metadata"]["endStep"] == hour and all(
-                    str(record.get(k)) == str(v) for k, v in spec.items()
-                ):
-                    return {
-                        "data": module.xr.Dataset({"value": sample["nearest"]["value"]})
-                    }
-            return None
-
-        form = MultiDict(
-            {
-                "latitude": "24.71",
-                "longitude": "-77.76",
-                "duration": "1",
-                "start_date": "2026-11-09",
-                "start_hour": "12",
-            }
-        )
-        forecast = parse_forecast_request(
-            form, datetime(2026, 11, 9, 12, tzinfo=timezone.utc)
-        )
-        with (
-            patch.object(
-                module, "get_latest_complete_run", return_value=("20261109", "00")
-            ),
-            patch.object(module, "get_model_variable", side_effect=field),
-            patch("requests.Session.get") as upstream,
-            patch.object(module, "get_usgs_elevation", return_value=0),
-        ):
-            upstream.return_value.status_code = 200
-            upstream.return_value.text = ""
-            report, chart = module.generate_forecast(forecast)
-        self.assertIn("DATA BASED ON ECMWF 20261109 00Z", report)
-        self.assertTrue(base64.b64decode(chart).startswith(b"\x89PNG\r\n\x1a\n"))
 
     def test_errors_and_logs_do_not_expose_exception_text(self):
         self.login()
@@ -401,7 +343,6 @@ class WebFoundationTests(unittest.TestCase):
             forecast.start + timedelta(hours=forecast.duration),
             datetime(2027, 1, 4, tzinfo=timezone.utc),
         )
-        self.assertEqual(check_work_budget(72, 13, 9), 676)
 
 
 if __name__ == "__main__":

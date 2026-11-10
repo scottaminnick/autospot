@@ -79,16 +79,6 @@ def parse_forecast_request(form, now=None):
     )
 
 
-def check_work_budget(duration, surface_fields, levels, limit=MAX_FIELD_TASKS):
-    count = len(range(0, duration + 1, 3)) * surface_fields
-    count += len(range(0, duration + 1, 6)) * levels * 3
-    if count > limit:
-        raise RequestValidationError(
-            "This request exceeds the download budget. Shorten the forecast period."
-        )
-    return count
-
-
 def validate_report(form):
     text = single(form, "taf_content", "")
     if (
