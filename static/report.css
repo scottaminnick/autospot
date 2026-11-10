@@ -1,0 +1,19 @@
+
+    body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
+    .container { background-color: #fff; padding: 30px; border-radius: 8px; max-width: 700px; margin: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .report-wrap { background: #fff; border: 1px solid #ccc; padding: 25px; max-width: 950px; margin: 20px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-x: auto; }
+    pre { font-family: 'Courier New', Courier, monospace !important; font-size: 13px; line-height: 1.5; white-space: pre !important; color: #111; margin: 0; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input[type='number'], input[type='text'], input[type='date'], select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+    .flex-row { display: flex; gap: 10px; }
+    .flex-col { flex: 1; }
+    button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; margin-top: 20px; cursor: pointer; }
+    .btn-transmit { background: #28a745; width: 100%; font-size: 16px; margin-bottom: 20px; font-weight: bold; }
+    .btn-transmit:hover { background: #218838; }
+    .taf-editor { width: 100%; font-family: 'Courier New', Courier, monospace !important; font-size: 13px; line-height: 1.5; color: #111; padding: 15px; border: 1px solid #007bff; border-radius: 4px; box-sizing: border-box; resize: vertical; white-space: pre; background-color: #f8f9fa; margin-bottom: 15px; }
+
+.notice { padding: 12px; border: 1px solid #c58600; background: #fff8e6; }
+.error { color: #a40000; font-weight: bold; }
+.meteogram { width: 100%; max-width: 900px; border: 1px solid #ccc; }
+.nav { max-width: 950px; margin: auto; display: flex; justify-content: space-between; align-items: center; }
+.nav form { display: inline; }

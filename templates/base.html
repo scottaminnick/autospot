@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}AutoSpot{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='report.css') }}">
+</head>
+<body>
+  {% if g.auth_sid %}
+  <nav class="nav" aria-label="Main navigation">
+    <a href="{{ url_for('web.index') }}">New forecast request</a>
+    <form action="{{ url_for('web.logout') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit">Sign out</button>
+    </form>
+  </nav>
+  {% endif %}
+  {% block content %}{% endblock %}
+</body>
+</html>
