@@ -1,3 +1,9 @@
+# Rebuild status
+
+The ECMWF-first rebuild specification and validated data fixtures are in
+[Phase 0](docs/phase0/README.md). They document the intended replacement behavior;
+the legacy application described below has not yet been repaired.
+
 # AutoSpot — NWSI 10-813 Spot Forecast Generator
 
 A Flask web app that generates NWSI 10-813 format spot forecasts (TAF-style)

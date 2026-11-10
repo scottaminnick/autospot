@@ -1,0 +1,669 @@
+{
+  "kind": "live_model_extraction_not_observations",
+  "request": {
+    "latitude": 24.71,
+    "longitude": -77.76,
+    "start_utc": "2026-11-09T12:00:00Z",
+    "end_utc": "2026-11-10T12:00:00Z"
+  },
+  "ecCodes_version": "2.49.0",
+  "samples": [],
+  "failures": [
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "sp",
+        "_offset": 937101,
+        "_length": 537471
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "850",
+        "levtype": "pl",
+        "param": "gh",
+        "_offset": 2952040,
+        "_length": 477760
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "lcc",
+        "_offset": 4300607,
+        "_length": 486393
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "mcc",
+        "_offset": 5072249,
+        "_length": 397894
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "hcc",
+        "_offset": 6530439,
+        "_length": 381729
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "levtype": "sfc",
+        "step": "12",
+        "param": "10fg",
+        "_offset": 6912168,
+        "_length": 637854
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "skt",
+        "_offset": 7550022,
+        "_length": 329724
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "ptype",
+        "_offset": 11867226,
+        "_length": 923764
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "levtype": "sfc",
+        "step": "12",
+        "param": "tp",
+        "_offset": 13257255,
+        "_length": 307592
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "tprate",
+        "_offset": 13868528,
+        "_length": 342186
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "tcc",
+        "_offset": 16975122,
+        "_length": 464620
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 17760876,
+        "_length": 609047
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "mucape",
+        "_offset": 18745460,
+        "_length": 304290
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 20463737,
+        "_length": 598504
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "levtype": "sfc",
+        "step": "12",
+        "param": "cp",
+        "_offset": 21897706,
+        "_length": 294697
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "2t",
+        "_offset": 22899047,
+        "_length": 317240
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levtype": "sfc",
+        "param": "2d",
+        "_offset": 23594423,
+        "_length": 330925
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "925",
+        "levtype": "pl",
+        "param": "gh",
+        "_offset": 31096238,
+        "_length": 502884
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "850",
+        "levtype": "pl",
+        "param": "t",
+        "_offset": 34539946,
+        "_length": 257641
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "925",
+        "levtype": "pl",
+        "param": "t",
+        "_offset": 44762908,
+        "_length": 262296
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "850",
+        "levtype": "pl",
+        "param": "u",
+        "_offset": 86837732,
+        "_length": 596208
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "850",
+        "levtype": "pl",
+        "param": "v",
+        "_offset": 87433940,
+        "_length": 613393
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "925",
+        "levtype": "pl",
+        "param": "u",
+        "_offset": 94665896,
+        "_length": 591286
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 12,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "12",
+        "levelist": "925",
+        "levtype": "pl",
+        "param": "v",
+        "_offset": 95882645,
+        "_length": 603770
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 15,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "15",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 18796975,
+        "_length": 611333
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-15h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 15,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "15",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 21286472,
+        "_length": 723255
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-15h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 18,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "18",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 19019519,
+        "_length": 613288
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-18h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 18,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "18",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 19632807,
+        "_length": 724118
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-18h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 21,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "21",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 21799213,
+        "_length": 735168
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-21h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 21,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "21",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 23925690,
+        "_length": 722237
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-21h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 24,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "24",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 17449713,
+        "_length": 732156
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-24h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 24,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "24",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 19113741,
+        "_length": 596532
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-24h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 27,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "27",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 21298799,
+        "_length": 608153
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-27h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 27,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "27",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 21906952,
+        "_length": 720419
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-27h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 30,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "30",
+        "levtype": "sfc",
+        "param": "10u",
+        "_offset": 21040838,
+        "_length": 609077
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-30h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    },
+    {
+      "step": 30,
+      "record": {
+        "domain": "g",
+        "date": "20261109",
+        "time": "0000",
+        "expver": "0001",
+        "class": "od",
+        "type": "fc",
+        "stream": "oper",
+        "step": "30",
+        "levtype": "sfc",
+        "param": "10v",
+        "_offset": 22683367,
+        "_length": 722014
+      },
+      "error": "ProxyError: HTTPSConnectionPool(host='data.ecmwf.int', port=443): Max retries exceeded with url: /forecasts/20261109/00z/ifs/0p25/oper/20261109000000-30h-oper-fc.grib2 (Caused by ProxyError('Unable to connect to proxy', OSError('Tunnel connection failed: 403 Forbidden')))"
+    }
+  ]
+}
