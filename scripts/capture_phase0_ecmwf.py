@@ -144,7 +144,9 @@ def main():
     for step, record in wanted:
         try:
             samples.append(capture_record(record, args.date, 0, step, args.output,
-                           step == 12 and record["levtype"] == "sfc" and record["param"] in ["10u", "10v", "10fg", "tprate", "ptype", "tcc"]))
+                           record["levtype"] == "sfc" and
+                           ((step == 0 and record["param"] == "z") or
+                            (step == 12 and record["param"] in ["10u", "10v", "10fg", "tprate", "ptype", "tcc"]))))
         except Exception as exc:
             failures.append({"step": step, "record": record, "error": f"{type(exc).__name__}: {exc}"})
         dump(args.output / "point-samples.json", {
@@ -153,7 +155,7 @@ def main():
             "end_utc": (run + timedelta(hours=36)).isoformat()},
             "ecCodes_version": ec.codes_get_api_version(), "samples": samples, "failures": failures})
         print("field", step, record["param"], record.get("levelist"), "captured", len(samples), "failed", len(failures), flush=True)
-    if failures or len(samples) < 40:
+    if failures or len(samples) != 41:
         raise SystemExit("Capture incomplete; inspect explicit failures and do not present as complete")
 
 
