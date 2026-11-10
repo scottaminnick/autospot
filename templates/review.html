@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}AutoSpot draft review{% endblock %}
+{% block content %}
+<main class="report-wrap">
+  <h1>Forecaster review and edit</h1>
+  <p class="notice">Draft guidance: review all weather elements and valid times against source guidance before use.</p>
+  <form action="{{ url_for('web.transmit') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="taf_content">Spot forecast text</label>
+    <textarea id="taf_content" name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
+    <button type="submit" class="btn-transmit">Download edited report</button>
+  </form>
+  {% if chart %}
+  <h2>Original model guidance</h2>
+  <p>Text edits do not change this chart.</p>
+  <img class="meteogram" src="data:image/png;base64,{{ chart }}" alt="Original model guidance time series">
+  {% endif %}
+</main>
+{% endblock %}

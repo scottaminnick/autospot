@@ -1,69 +1,79 @@
-# Rebuild status
+# AutoSpot — aviation spot forecast drafts
 
-The ECMWF-first rebuild specification and validated data fixtures are in
-[Phase 0](docs/phase0/README.md). They document the intended replacement behavior;
-the legacy application described below has not yet been repaired.
+AutoSpot generates an editable point forecast for forecaster review. ECMWF IFS
+is the preferred/default model; GFS is an explicit alternate choice. The local
+AWC spot procedure defines the intended TAF-format output and optional FL winds.
 
-# AutoSpot — NWSI 10-813 Spot Forecast Generator
+The rebuild is being delivered in focused PRs. [Phase 0](docs/phase0/README.md)
+defines the product and preserves reference data. [PR 1](docs/pr1-foundation.md)
+adds request validation, escaped templates, session/security controls, reproducible
+runtime dependencies, error handling and CI.
 
-A Flask web app that generates NWSI 10-813 format spot forecasts (TAF-style)
-for any lat/lon — built for Search and Rescue, ship incidents, and other
-point-specific aviation weather support. Originally prototyped in Google
-Colab; converted here into a standalone, Railway-deployable web service.
+**Meteorological repairs are still in progress.** The existing acquisition and
+forecast logic retain the audit's missing-field defaults, approximate flight-level
+mapping, timing and weather-coding issues. Review all elements against source
+guidance. This foundation PR does not establish forecast accuracy or complete the
+ECMWF pipeline rebuild. ECMWF cloud-layer fractions and precipitation type are
+available in the checked feed but are not yet integrated into the legacy path.
 
-## How it works
+## Install and test
 
-1. User submits a lat/lon, start time, forecast duration, and model choice
-   via the web form.
-2. The app pulls only the needed GRIB2 fields for the selected global model
-   directly from public AWS buckets using HTTP byte-range requests (no full
-   file downloads, no API key required):
-   - **GFS** (global, 25km) from NOAA's `noaa-gfs-bdp-pds` bucket.
-   - **ECMWF IFS** (global, 25km) open data from the `ecmwf-forecasts`
-     bucket. ECMWF open data does not publish surface visibility, cloud-base
-     height, or layered cloud cover, so those degrade gracefully to sane
-     defaults; total cloud cover drives the ceiling/sky logic and CAPE stands
-     in for the convective-precip flag.
-3. `cfgrib`/`xarray` decode the GRIB2 bytes; surface fields drive the
-   NWSI 10-813 trigger logic (wind shift, visibility change, ceiling
-   category change, etc.) that builds FM/TEMPO/PROB30 groups.
-4. A matplotlib meteogram (ceilings, visibility, wind, precip) renders
-   server-side as a base64 PNG embedded directly in the response — no
-   files are written to persistent storage.
-5. The forecaster reviews/edits the draft text in-browser, then "Approve &
-   Save" triggers a client-side download (no server-side file storage).
+Python **3.12.14** is pinned in `.python-version`. Runtime and development
+requirements are fully pinned and hashed. From an isolated virtual environment:
 
-## Required environment variables (Railway -> Variables tab)
+```sh
+python -m pip install --require-hashes -r requirements-dev.txt
+python -m pip check
+python -m unittest discover -s tests -v
+python scripts/check_phase0_domain.py
+pip-audit -r requirements.txt --disable-pip --no-deps --progress-spinner off
+```
 
-| Variable | Purpose |
+The tests use frozen data and mocked upstream requests. The audit consults the
+public advisory database; passing means no *known* listed vulnerability was found.
+
+## Configuration
+
+| Setting | Purpose |
 |---|---|
-| `APP_PASSWORD` | Shared password gating the whole app |
-| `SECRET_KEY` | Signs the login session cookie. **Must stay identical** across deploys/workers - generate once and don't regenerate it casually, or everyone gets logged out. Generate with: `python3 -c "import secrets; print(secrets.token_hex(32))"` |
+| `APP_PASSWORD` | Shared login password; changing it invalidates existing sessions. |
+| `SECRET_KEY` | Stable random signing key, at least 32 characters; identical across workers. |
+| `AUTOSPOT_SECURITY_DB` | Optional security-state file, default `/tmp/autospot-state/security.sqlite3`. Workers in one replica must share this path. |
+| `AUTOSPOT_TRUST_PROXY_HOPS` | Default `0`. Set only after verifying the actual trusted proxy chain; controls forwarded client IP/protocol handling. |
 
-The app intentionally hard-fails with a 500 on `/login` if either variable
-is missing, rather than silently falling back to an insecure default.
+HTTPS is required by default: session cookies are Secure, HttpOnly and SameSite
+Lax. For loopback-only HTTP development, an explicit factory override is available:
 
-## Deploying
+```sh
+flask --app 'app:create_app({"SESSION_COOKIE_SECURE": False})' run --host 127.0.0.1 --port 5005
+```
 
-1. Push this repo to GitHub.
-2. In Railway: New Project -> Deploy from GitHub repo -> select this repo.
-3. Set `APP_PASSWORD` and `SECRET_KEY` in the service's Variables tab.
-4. Railway auto-detects Python via the `Procfile` + `requirements.txt` -
-   no Dockerfile needed. (Verified: `cfgrib`'s ecCodes dependency comes
-   bundled via the `ecmwflibs` package, so no `apt-get install
-   libeccodes-dev` step is required at the OS level.)
-5. First deploy may take a few minutes (matplotlib/xarray/cfgrib are
-   sizeable). Subsequent deploys are faster due to build caching.
+Set password/key in the environment before starting. Never commit them. The
+readiness endpoint `/healthz` returns 503 for missing/weak configuration; it does
+not fetch weather data. Authentication expires after eight hours; forms expire
+after two hours and can be refreshed by loading a new form.
 
-## Notes on the gunicorn timeout
+## Railway and deployment
 
-A single forecast request can legitimately take 15-120+ seconds (multiple
-GRIB2 byte-range fetches across many forecast hours, done concurrently via
-a thread pool). gunicorn's default worker timeout is 30 seconds, which
-would kill these requests mid-flight - the `Procfile` explicitly sets
-`--timeout 180` to give enough headroom. If you ever see a forecast
-request fail with no app-side error logged, check this first before
-assuming a Railway platform issue.
+`Procfile` provides the repository start command. A Railway service start-command
+override takes precedence; verify it when deploying. PR 1 supports multiple web
+workers **within one replica** using shared local SQLite security state. Multiple
+replicas require a genuinely shared control store first. Ephemeral state resets
+on replacement/deployment, causing reauthentication and resetting rate budgets.
+
+Use `/healthz` as the readiness path when configuring staging. The PR 1 rollout
+notes cover cookie/session migration, proxy settings, budgets and remaining work.
+Production rollout remains a separate step after staging review.
+
+## Forecaster workflow
+
+1. Sign in and request a location, UTC start, duration (1–72 hours), and model.
+2. Review and edit the draft and original model guidance.
+3. Download the edited report as UTF-8 text and use the established coordination
+   and NAOC archive workflow. The download does not send or archive a report.
+
+Draft/version finalization, missing-field completion, authoritative spot-domain
+routing, and provenance packages are covered by later PRs.
 
 ## Credit
 

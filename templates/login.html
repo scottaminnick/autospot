@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}AutoSpot sign in{% endblock %}
+{% block content %}
+<main class="container">
+  <h1>Aviation Spot Forecast Generator</h1>
+  {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+  <form action="{{ url_for('web.login') }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="password">Password</label>
+    <input id="password" type="password" name="password" maxlength="1024" autocomplete="current-password" required autofocus>
+    <button type="submit">Sign in</button>
+  </form>
+</main>
+{% endblock %}

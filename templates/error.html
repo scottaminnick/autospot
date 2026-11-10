@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}AutoSpot request error{% endblock %}
+{% block content %}
+<main class="container">
+  <h1>Request could not be completed</h1>
+  <p class="error" role="alert">{{ message }}</p>
+  <p>Reference: {{ g.get('request_id', '') }}</p>
+  <p>Return to the previous page to correct the form, or <a href="{{ url_for('web.index') }}">start a new request</a>.</p>
+</main>
+{% endblock %}
