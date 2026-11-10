@@ -23,7 +23,10 @@ from weather.fields import (
     decode_message,
     locate,
     parse_index,
+    pressure_spec,
 )
+from weather.coordinates import pressure_brackets, enrich
+from weather.domain import classify
 from weather.transport import Transport
 from request_validation import MAX_FIELD_TASKS
 
@@ -146,15 +149,14 @@ class Pipeline:
                 self.objects[key] = error
                 raise
 
-    def available(self, run, step):
+    def available(self, run, step, specs=None):
+        required = [s for s in (specs or SPECS) if s.name in CORE or s.pressure]
         found, failures = {}, []
         for provider in PROVIDERS:
             try:
                 context = self.context(provider, run, step)
                 found[provider] = context
-                if all(
-                    locate(context["rows"], s, step) for s in SPECS if s.name in CORE
-                ):
+                if all(locate(context["rows"], s, step) for s in required):
                     break
             except DataFault as error:
                 failures.append(
@@ -162,21 +164,21 @@ class Pipeline:
                 )
         complete = all(
             any(locate(c["rows"], spec, step) for c in found.values())
-            for spec in SPECS
-            if spec.name in CORE
+            for spec in required
         )
         return {"contexts": found, "complete": complete, "failures": failures}
 
-    def select(self, start, end, now):
+    def select(self, start, end, now, specs=None):
+        specs = specs or SPECS
         partial = None
         for run in candidate_runs(now):
             try:
                 self.transport.remaining()
                 steps = requested_steps(run, start, end)
-                if len(steps) * len(SPECS) + 1 > MAX_TASKS:
+                if len(steps) * len(specs) + 1 > MAX_TASKS:
                     raise DataFault("task_budget")
                 # Check both boundaries, then every interior slot. No end-only sentry.
-                plan = {steps[0]: self.available(run, steps[0])}
+                plan = {steps[0]: self.available(run, steps[0], specs)}
                 if not plan[steps[0]]["contexts"]:
                     self.diagnostics.append(
                         {
@@ -186,11 +188,12 @@ class Pipeline:
                     )
                     continue
                 if steps[-1] != steps[0]:
-                    plan[steps[-1]] = self.available(run, steps[-1])
+                    plan[steps[-1]] = self.available(run, steps[-1], specs)
                 middle = [step for step in steps if step not in plan]
                 with ThreadPoolExecutor(max_workers=4) as executor:
                     for step, item in zip(
-                        middle, executor.map(lambda h: self.available(run, h), middle)
+                        middle,
+                        executor.map(lambda h: self.available(run, h, specs), middle),
                     ):
                         plan[step] = item
                 result = {"run": run, "steps": steps, "plan": plan}
@@ -353,9 +356,15 @@ class Pipeline:
             raise DataFault("gfs_adapter_not_validated", State.UNSUPPORTED)
         now = now or datetime.now(timezone.utc)
         end = forecast.start + timedelta(hours=forecast.duration)
-        plan = self.select(forecast.start, end, now)
+        levels = sorted(
+            {p for fl in forecast.flight_levels for p in pressure_brackets(fl)}
+        )
+        specs = SPECS + [
+            pressure_spec(param, p) for p in levels for param in ("u", "v")
+        ]
+        plan = self.select(forecast.start, end, now, specs)
         run, steps = plan["run"], plan["steps"]
-        jobs = [(step, spec) for step in steps for spec in SPECS] + [(0, OROGRAPHY)]
+        jobs = [(step, spec) for step in steps for spec in specs] + [(0, OROGRAPHY)]
         slots = {
             step: {
                 name: FieldValue(
@@ -394,8 +403,8 @@ class Pipeline:
         for fields in slots.values():
             for value in fields.values():
                 counts[value["status"]] += 1
-        return {
-            "schema_version": 1,
+        data = {
+            "schema_version": 2,
             "model": "ECMWF_IFS",
             "grid": "0p25",
             "cycle_utc": run.isoformat(),
@@ -421,7 +430,12 @@ class Pipeline:
             ],
             "orography": orography,
             "complete_forecast": False,
+            "expected_steps": steps,
+            "domain": classify(
+                forecast.latitude, forecast.longitude, forecast.domain_disposition
+            ),
         }
+        return enrich(data, forecast.flight_levels)
 
 
 def _worker(connection, forecast, cache_path, seconds):

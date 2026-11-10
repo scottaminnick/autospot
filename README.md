@@ -81,3 +81,13 @@ routing, and provenance packages are covered by later PRs.
 Core meteorological/NWSI 10-813 logic and the original Flask app concept
 came from an earlier Google Colab prototype; this repo restructures it for
 standalone deployment and adds password-gated access.
+
+## PR 3: UTC, optional FL winds and domain review
+
+Requests preserve exact UTC boundaries. Permitted numeric interpolation is
+labeled with its source times; missing native slots remain gaps. Optional
+comma-separated flight levels use standard pressure altitude, log-pressure U/V
+interpolation and model-surface checks, with explicit unavailable reasons.
+The location map reports candidate AWC/Anchorage geometry and records forecaster
+coordination disposition. Automatic spot-service assignment remains disabled
+pending the operational boundary decision. See [PR 3 details and validation](docs/pr3-time-flight-level-domain.md).

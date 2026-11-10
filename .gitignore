@@ -11,3 +11,4 @@ venv/
 .DS_Store
 *_AutoSpot.txt
 !tests/fixtures/phase0/**/messages/*.grib2
+!tests/fixtures/pr3/*.grib2

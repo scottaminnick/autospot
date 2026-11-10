@@ -37,7 +37,8 @@ from web_security import (
 )
 from weather.pipeline import retrieve_forecast
 from weather.fields import DataFault
-from weather.draft import build_draft, chart, guidance_rows
+from weather.draft import build_draft, chart, guidance_rows, wind, wind_components
+from weather.domain import location_map
 
 web = Blueprint("web", __name__)
 
@@ -157,6 +158,11 @@ def submit():
         chart=image,
         data=data,
         guidance=guidance_rows(data) if data else [],
+        location_map=location_map(data["latitude"], data["longitude"])
+        if data
+        else None,
+        wind_text=wind,
+        wind_components=wind_components,
     )
 
 
@@ -187,7 +193,7 @@ def generate_forecast(forecast):
             ) from None
         if error.code == "task_budget":
             raise RequestValidationError(
-                "This request exceeds the download budget. Shorten the requested period."
+                "This request exceeds the download budget. Select fewer flight levels or a shorter period."
             ) from None
         current_app.logger.warning(
             json.dumps(

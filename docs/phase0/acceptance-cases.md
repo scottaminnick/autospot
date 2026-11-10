@@ -15,7 +15,7 @@ application passes. Phase 0's offline tests check frozen evidence only.
 | +0 index contains +3 temperature-extreme placeholders | Field lookup uses record time and decoded time, not object filename alone. | 2 |
 | Gust maximum 11–12 h in +12 file | Interval shown as one hour; no assumption that all fields cover preceding three hours. | 2/4 |
 | Synthetic winds 350°/10° at equal speed, midpoint | Interpolate U/V through north, never 180°. Calm retains valid-data state. | 3 |
-| Synthetic FL030 target between 1000/925 hPa | Standard-atmosphere target pressure and log-pressure U/V interpolation; never hard-code 925 hPa as FL030. | 3 |
+| Synthetic FL030 target between 925/850 hPa (corrected in PR 3; approximately 908.12 hPa) | Standard-atmosphere target pressure and log-pressure U/V interpolation; never hard-code 925 hPa as FL030. | 3 |
 | Synthetic FL450 | Piecewise standard atmosphere across tropopause; correct pressure bracket. | 3 |
 | Target/bracket below ground; unknown surface pressure | Explicit unavailable/unknown status; no physical wind fabricated below ground. | 3 |
 | Synthetic SKC to OVC025; steady speed with qualifying gust onset/cessation | Change groups retained; clouds and gusts participate in change detection. | 4 |

@@ -30,6 +30,11 @@ def main():
     parser.add_argument("--start", type=utc, required=True)
     parser.add_argument("--duration", type=int, default=24)
     parser.add_argument(
+        "--flight-levels",
+        default="",
+        help="Comma-separated integer flight levels, e.g. 30,450",
+    )
+    parser.add_argument(
         "--as-of",
         type=utc,
         help="Replay candidate discovery time; not proof of past availability",
@@ -39,6 +44,16 @@ def main():
     )
     parser.add_argument("--summary", type=Path, help="Optional summary JSON path")
     args = parser.parse_args()
+    try:
+        levels = tuple(sorted(int(v) for v in args.flight_levels.split(",") if v))
+        if (
+            len(levels) > 12
+            or len(set(levels)) != len(levels)
+            or any(not 10 <= fl <= 450 for fl in levels)
+        ):
+            raise ValueError()
+    except ValueError:
+        parser.error("Invalid flight levels")
     if (
         not math.isfinite(args.latitude)
         or not -90 <= args.latitude <= 90
@@ -48,7 +63,13 @@ def main():
     ):
         parser.error("Invalid location or duration")
     request = ForecastRequest(
-        args.latitude, args.longitude, "LIVE CHECK", "ECMWF", args.duration, args.start
+        args.latitude,
+        args.longitude,
+        "LIVE CHECK",
+        "ECMWF",
+        args.duration,
+        args.start,
+        levels,
     )
     summary = []
     with tempfile.TemporaryDirectory(prefix="autospot-live-cache-") as folder:
@@ -84,6 +105,18 @@ def main():
                     ),
                     "diagnostics": data["diagnostics"],
                     "complete_forecast": False,
+                    "domain": data["domain"],
+                    "model_elevation": data["model_elevation"],
+                    "requested_time_guidance": [
+                        {
+                            "valid_utc": r["valid_utc"],
+                            "support_only": r["support_only"],
+                            "u10": r["fields"].get("u10"),
+                            "v10": r["fields"].get("v10"),
+                            "flight_levels": r["flight_levels"],
+                        }
+                        for r in data["window_rows"]
+                    ],
                 }
                 if data["cycle_utc"] == "2026-11-09T00:00:00+00:00" and (
                     args.latitude,

@@ -28,6 +28,8 @@ class ForecastRequest:
     model: str
     duration: int
     start: datetime
+    flight_levels: tuple[int, ...] = ()
+    domain_disposition: str = "pending"
 
 
 def parse_forecast_request(form, now=None):
@@ -74,8 +76,49 @@ def parse_forecast_request(form, now=None):
     label = single(form, "sar_name", "AUTO-SPOT").strip()
     if len(label) > 120 or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in label):
         raise RequestValidationError("Use a one-line label of at most 120 characters.")
+    raw_levels = single(form, "flight_levels", "").strip()
+    levels = []
+    if raw_levels:
+        for token in raw_levels.split(","):
+            if not re.fullmatch(r"\s*(?:FL)?[0-9]{2,3}\s*", token, re.IGNORECASE):
+                raise RequestValidationError(
+                    "Use comma-separated flight levels, such as FL030, FL060, FL180."
+                )
+            level = int(re.sub(r"(?i)fl", "", token).strip())
+            if not 10 <= level <= 450 or level in levels:
+                raise RequestValidationError(
+                    "Use distinct flight levels from FL010 to FL450."
+                )
+            levels.append(level)
+        if len(levels) > 12:
+            raise RequestValidationError("Request at most 12 flight levels.")
+    disposition = single(form, "domain_disposition", "pending")
+    if disposition not in {
+        "pending",
+        "awc_coordinated",
+        "aawu_redirect",
+        "other_office_coordination",
+    }:
+        raise RequestValidationError("Choose a valid service-domain disposition.")
+    # Bound the complete work before any index or model request. Phase 3 adds
+    # two components at each distinct enclosing pressure level.
+    from weather.coordinates import pressure_brackets
+    from weather.fields import SPECS
+
+    pressure_levels = {p for fl in levels for p in pressure_brackets(fl)}
+    maximum_slots = math.ceil(int(duration) / 3) + 2
+    if maximum_slots * (len(SPECS) + 2 * len(pressure_levels)) + 1 > MAX_FIELD_TASKS:
+        raise RequestValidationError(
+            "This combination exceeds the download budget. Select fewer flight levels or a shorter period."
+        )
     return ForecastRequest(
-        *coordinates, label or "AUTO-SPOT", model, int(duration), start
+        *coordinates,
+        label or "AUTO-SPOT",
+        model,
+        int(duration),
+        start,
+        tuple(sorted(levels)),
+        disposition,
     )
 
 

@@ -1,0 +1,17 @@
+{
+  "kind": "local_https_http_smoke",
+  "checked_at": "2026-11-10T08:51:55.266967+00:00",
+  "start_utc": "2026-11-10T10:00:00+00:00",
+  "exact_start_and_end": true,
+  "flight_levels": [
+    30,
+    450
+  ],
+  "source_times_visible": true,
+  "domain_disposition_visible": true,
+  "map_and_chart_pngs": true,
+  "utf8_edited_download_matches": true,
+  "real_spawned_model_acquisition": true,
+  "browser_test": "Chromium launch unavailable: environment denied its local socket; HTML/PNG inspection and HTTP checks used",
+  "production_deployment": false
+}
