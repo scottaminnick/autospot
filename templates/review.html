@@ -3,12 +3,71 @@
 {% block content %}
 <main class="report-wrap">
   <h1>Forecaster review and edit</h1>
-  <p class="notice">Incomplete first guess: complete visibility, weather and sky using reviewed guidance. This feed does not provide visibility or cloud-base heights. Verify the location's service domain before use.</p>
+  <p class="notice">{% if product and product.complete %}Element review recorded. This is an editable draft; finalization is not yet available.{% else %}Incomplete first guess: complete visibility, weather and sky using reviewed guidance. This feed does not provide visibility or cloud-base heights.{% endif %} Verify the location's service domain before use.</p>
   {% if data %}
   <p>Model: ECMWF IFS {{ data.grid }}. Cycle: {{ data.cycle_utc }}.<br>
      Requested UTC period: {{ data.start_utc }} to {{ data.end_utc }}.</p>
   <p>Native field quality: {{ data.counts.direct }} direct; {{ data.counts.missing }} missing;
      {{ data.counts.invalid }} invalid; {{ data.counts.unsupported }} unsupported.</p>
+  {% if review_id %}
+  <section class="element-review">
+    <h2>Review forecast elements</h2>
+    <p>Use these elements to rebuild the draft, then make any free-text edits below. Blank visibility, weather or sky stays unresolved. Enter <strong>NONE</strong> only after reviewing that no significant weather is expected.</p>
+    <p>This temporary review belongs to your signed-in session and expires 24 hours after creation. It is not an archive.</p>
+    {% if product.unresolved %}<p>{{ product.unresolved|length }} time slots still require element completion or wind/gust review.</p>{% endif %}
+    <form action="{{ url_for('web.review',identifier=review_id) }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="revision" value="{{ revision }}">
+      <fieldset>
+        <legend>Common conditions supplied by forecaster</legend>
+        <div class="element-grid">
+          <div><label for="common_visibility">Visibility (statute miles)</label><input type="text" id="common_visibility" name="common_visibility" maxlength="40" placeholder="P6SM, .75, 1.5, 6"></div>
+          <div><label for="common_weather">Weather / obscuration</label><input type="text" id="common_weather" name="common_weather" maxlength="80" placeholder="-RA BR, -FZRA, -RASN or NONE"></div>
+          <div><label for="common_sky">Sky (feet AGL in hundreds)</label><input type="text" id="common_sky" name="common_sky" maxlength="100" placeholder="SCT020 BKN030, SKC or VV003"></div>
+        </div>
+        <label class="checkbox-label"><input type="checkbox" name="apply_common" value="yes"> Apply these common conditions to blank time-slot fields</label>
+        <label class="checkbox-label"><input type="checkbox" name="review_all_winds" value="yes"> I reviewed all displayed wind forecasts, including future gust decisions</label>
+        <p>Visibility is rounded down to TAF increments; 2.5 SM becomes 2SM and exactly 6 SM stays 6SM. Cloud layers and ceiling heights are forecaster supplied. BKN/OVC or vertical visibility define the ceiling; FEW/SCT do not.</p>
+      </fieldset>
+      {% for row in editor %}
+      <details class="time-slot" {% if loop.first %}open{% endif %}>
+        <summary>{{ row.valid_utc }} — {{ row.wind_input or 'Wind unavailable' }}{% if row.sky.value %}; {{ row.sky_input }}{% endif %}{% if not row.wind.reviewed or row.visibility.value is none or row.weather.value is none or row.sky.value is none %} — review pending{% endif %}</summary>
+        <div class="element-grid">
+          <div><label for="row_{{ row.index }}_wind">Wind (true direction / knots)</label><input type="text" id="row_{{ row.index }}_wind" name="row_{{ row.index }}_wind" maxlength="20" value="{{ row.wind_input }}" placeholder="23020G35KT"><label class="checkbox-label"><input type="checkbox" name="row_{{ row.index }}_wind_reviewed" value="yes" {% if row.wind.reviewed %}checked{% endif %}> Wind and gust decision reviewed</label></div>
+          <div><label for="row_{{ row.index }}_visibility">Visibility (statute miles)</label><input type="text" id="row_{{ row.index }}_visibility" name="row_{{ row.index }}_visibility" maxlength="40" value="{{ row.visibility_input }}" placeholder="Manual completion"></div>
+          <div><label for="row_{{ row.index }}_weather">Weather / obscuration</label><input type="text" id="row_{{ row.index }}_weather" name="row_{{ row.index }}_weather" maxlength="80" value="{{ row.weather_input }}" placeholder="Manual completion; NONE if reviewed"></div>
+          <div><label for="row_{{ row.index }}_sky">Sky (feet AGL in hundreds)</label><input type="text" id="row_{{ row.index }}_sky" name="row_{{ row.index }}_sky" maxlength="100" value="{{ row.sky_input }}" placeholder="SCT020 BKN030 or SKC"></div>
+        </div>
+        {% for note in row.notes %}<p class="notice">{{ note }}</p>{% endfor %}
+        <p>Model precipitation: {{ row.context.precipitation.phase or 'Unavailable / unvalidated' }}{% if row.context.precipitation.rate_mm_h is not none %}; instantaneous rate {{ '%.4f'|format(row.context.precipitation.rate_mm_h) }} mm/h{% endif %}.<br>
+          {% if row.context.precipitation.suggestion %}Rain-rate candidate: <code>{{ row.context.precipitation.suggestion }}</code> — review phase, intensity and persistence before use. <button type="button" class="use-weather" data-target="row_{{ row.index }}_weather" data-value="{{ row.context.precipitation.suggestion }}">Replace weather with this candidate</button>{% else %}{{ row.context.precipitation.reason|replace('_',' ') }}.{% endif %}</p>
+        <p>{% if row.context.gust.peak_kt is not none %}Model gust maximum: {{ '%.1f'|format(row.context.gust.peak_kt) }} kt over {{ row.context.gust.interval_start_utc }} to {{ row.context.gust.interval_end_utc }}. This preceding maximum is context for a future gust forecast; enter any chosen G group in the wind field.{% else %}Gust maximum unavailable at this exact valid time; review the native guidance below.{% endif %}</p>
+        <p>Independent cloud fractions: {% for name,value in row.context.cloud_fractions.items() %}{{ name }} {% if value is not none %}{{ '%.0f'|format(value*100) }}%{% else %}unknown{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}. These do not supply cloud bases or additive layers.<br>
+          2 m temperature: {% if row.context.temperature_c.temperature2 is not none %}{{ '%.1f'|format(row.context.temperature_c.temperature2) }} °C{% else %}unknown{% endif %}; dewpoint: {% if row.context.temperature_c.dewpoint2 is not none %}{{ '%.1f'|format(row.context.temperature_c.dewpoint2) }} °C{% else %}unknown{% endif %}. CAPE: {{ row.context.cape_j_kg if row.context.cape_j_kg is not none else 'unknown' }} J/kg (context only).</p>
+        <p>Visibility: {{ row.visibility.status }}; weather: {{ row.weather.status }}; sky: {{ row.sky.status }}.{% if row.sky.value %} Ceiling: {{ row.sky.value.ceiling_state|replace('_',' ') }}{% if row.sky.value.ceiling_ft_agl is not none %}, {{ row.sky.value.ceiling_ft_agl }} ft AGL{% endif %}.{% endif %}</p>
+      </details>
+      {% endfor %}
+      <details class="conditional-review">
+        <summary>Optional forecaster-selected TEMPO / PROB30 groups</summary>
+        <p>Select groups only when your evidence supports their occurrence, timing and probability. CAPE and deterministic snapshots do not assign a probability. Groups crossing prevailing FM changes are split at those boundaries to retain the selected period. Omitted elements inherit prevailing conditions.</p>
+        <input type="hidden" name="group_count" value="{{ group_editor|length }}">
+        {% for group in group_editor %}
+        <fieldset><legend>Conditional group {{ loop.index }}</legend>
+          <div class="element-grid">
+            <div><label for="group_{{ loop.index0 }}_kind">Type</label><select id="group_{{ loop.index0 }}_kind" name="group_{{ loop.index0 }}_kind"><option value="">Not used</option>{% for kind in ['TEMPO','PROB30'] %}<option value="{{ kind }}" {% if group.kind==kind %}selected{% endif %}>{{ kind }}</option>{% endfor %}</select></div>
+            {% for name in ['start','end'] %}<div><label for="group_{{ loop.index0 }}_{{ name }}">{{ name|capitalize }} (UTC, whole hour)</label><input type="datetime-local" id="group_{{ loop.index0 }}_{{ name }}" name="group_{{ loop.index0 }}_{{ name }}" step="3600" value="{{ group.get(name,'') }}"></div>{% endfor %}
+            {% for name in ['wind','visibility','weather','sky'] %}<div><label for="group_{{ loop.index0 }}_{{ name }}">{{ name|capitalize }}</label><input type="text" id="group_{{ loop.index0 }}_{{ name }}" name="group_{{ loop.index0 }}_{{ name }}" maxlength="100" value="{{ group.get(name,'') }}"></div>{% endfor %}
+          </div>
+        </fieldset>
+        {% endfor %}
+      </details>
+      <button type="submit">Rebuild draft from reviewed elements</button>
+    </form>
+    <p>Free-text edits below do not change the element form or original model guidance. Rebuilding uses the element form; make free-text adjustments after rebuilding.</p>
+    <details><summary>Element quality and original / forecaster contributions</summary><pre>{{ product|tojson(indent=2) }}</pre></details>
+  </section>
+  <script src="{{ url_for('static',filename='review.js') }}" defer></script>
+  {% endif %}
   <h2>Location and service-domain review</h2>
   <p><strong>{{ data.domain.classification }}</strong>: {{ data.domain.message }}<br>
     Recorded disposition: {{ data.domain.disposition }}. This records the forecaster's selection; it does not establish operational coverage.<br>

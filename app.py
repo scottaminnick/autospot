@@ -3,6 +3,8 @@ import hmac
 import io
 import json
 import sqlite3
+import os
+from pathlib import Path
 from functools import wraps
 
 from flask import (
@@ -24,6 +26,7 @@ from request_validation import (
     parse_forecast_request,
     validate_report,
     RequestValidationError,
+    single,
 )
 from web_security import (
     install_security,
@@ -39,6 +42,9 @@ from weather.pipeline import retrieve_forecast
 from weather.fields import DataFault
 from weather.draft import build_draft, chart, guidance_rows, wind, wind_components
 from weather.domain import location_map
+from weather.aviation import ElementError
+from weather.product import initialize_product, apply_elements, editor_rows
+from weather.reviews import ReviewStore, ReviewMissing, ReviewConflict, ReviewFull
 
 web = Blueprint("web", __name__)
 
@@ -71,6 +77,7 @@ def health():
         return {"status": "unavailable"}, 503
     try:
         current_app.extensions["controls"].ready()
+        current_app.extensions["reviews"].ready()
     except (sqlite3.Error, OSError):
         return {"status": "unavailable"}, 503
     return {"status": "ok"}
@@ -152,6 +159,16 @@ def submit():
         [("submit_global", "all", 20, 300), ("submit_session", g.auth_sid, 3, 300)]
     )
     report, image, data = generate_forecast(forecast)
+    if data:
+        identifier = current_app.extensions["reviews"].create(
+            g.auth_sid,
+            {
+                "data": data,
+                "label": forecast.label,
+                "product": initialize_product(data),
+            },
+        )
+        return redirect(url_for("web.review", identifier=identifier), code=303)
     return render_template(
         "review.html",
         report=report,
@@ -164,6 +181,120 @@ def submit():
         wind_text=wind,
         wind_components=wind_components,
     )
+
+
+@web.route("/review/<identifier>", methods=["GET", "POST"])
+@login_required
+def review(identifier):
+    store = current_app.extensions["reviews"]
+    revision, workspace = store.get(identifier, g.auth_sid)
+    if request.method == "POST":
+        require_csrf()
+        rate_limit([("review_session", g.auth_sid, 20, 60)])
+        for key in request.form:
+            if len(request.form.getlist(key)) != 1:
+                raise RequestValidationError("Duplicate review fields are not allowed.")
+        supplied = single(request.form, "revision", "")
+        if supplied != str(revision):
+            raise ReviewConflict()
+        data = workspace["data"]
+        entries = []
+        common = {
+            n: review_value("common_" + n) for n in ("visibility", "weather", "sky")
+        }
+        use_common = review_value("apply_common") == "yes"
+        wind_all = review_value("review_all_winds") == "yes"
+        for i, row in enumerate(workspace["product"]["rows"]):
+            entry = {
+                n: review_value(f"row_{i}_{n}")
+                for n in ("wind", "visibility", "weather", "sky")
+            }
+            if use_common:
+                entry.update({n: common[n] for n in common if not entry[n]})
+            entry["wind_reviewed"] = (
+                wind_all or review_value(f"row_{i}_wind_reviewed") == "yes"
+            )
+            entries.append(entry)
+        count = review_value("group_count")
+        if not count.isdecimal() or not 0 <= int(count) <= 12:
+            raise RequestValidationError("Invalid number of conditional groups.")
+        groups = []
+        for i in range(int(count)):
+            group = {
+                n: review_value(f"group_{i}_{n}")
+                for n in (
+                    "kind",
+                    "start",
+                    "end",
+                    "wind",
+                    "visibility",
+                    "weather",
+                    "sky",
+                )
+            }
+            # The browser's datetime-local values are explicitly labeled UTC.
+            from datetime import datetime as calendar_datetime
+
+            for name in ("start", "end"):
+                if group[name]:
+                    try:
+                        group[name] = (
+                            calendar_datetime.strptime(group[name], "%Y-%m-%dT%H:%M")
+                            .replace(tzinfo=timezone.utc)
+                            .isoformat()
+                        )
+                    except ValueError:
+                        raise RequestValidationError(
+                            "Enter a complete UTC date and hour for conditional groups."
+                        ) from None
+            groups.append(group)
+        workspace["product"] = apply_elements(
+            workspace["product"], entries, groups, data["start_utc"], data["end_utc"]
+        )
+        store.save(identifier, g.auth_sid, revision, workspace)
+        return redirect(url_for("web.review", identifier=identifier), code=303)
+    data = workspace["data"]
+    return render_template(
+        "review.html",
+        report=build_draft(data, workspace["label"], workspace["product"]),
+        chart=chart(data),
+        data=data,
+        guidance=guidance_rows(data),
+        location_map=location_map(data["latitude"], data["longitude"]),
+        wind_text=wind,
+        wind_components=wind_components,
+        review_id=identifier,
+        revision=revision,
+        product=workspace["product"],
+        editor=editor_rows(workspace["product"]),
+        group_editor=conditional_editor(workspace["product"]["groups"]),
+    )
+
+
+def review_value(name):
+    value = single(request.form, name, "").strip()
+    if len(value) > 120 or any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in value):
+        raise RequestValidationError(
+            "Review entries must be one line of at most 120 characters."
+        )
+    return value
+
+
+def conditional_editor(groups):
+    output = []
+    for group in groups:
+        output.append(
+            dict(
+                group,
+                start=group["start"][:16],
+                end=group["end"][:16],
+                wind=group["wind"] or "",
+                visibility=group["visibility"] or "",
+                weather=" ".join(group["weather"]) if group["weather"] else "",
+                sky=" ".join(group["sky"]["tokens"]) if group["sky"] else "",
+            )
+        )
+    return output + [{} for _ in range(min(12 - len(output), max(1, 4 - len(output))))]
 
 
 @web.route("/transmit", methods=["POST"])
@@ -218,12 +349,45 @@ def create_app(test_config=None):
     if test_config:
         application.config.update(test_config)
     activate_security(application)
+    review_path = (
+        application.config.get("REVIEW_DB_PATH")
+        or os.environ.get("AUTOSPOT_REVIEW_DB")
+        or str(
+            Path(application.config["SECURITY_DB_PATH"]).with_name("reviews.sqlite3")
+        )
+    )
+    application.extensions["reviews"] = ReviewStore(review_path)
     application.register_blueprint(web)
     application.logger.setLevel("INFO")
 
     @application.errorhandler(RequestValidationError)
     def invalid_request(error):
         return render_template("error.html", message=str(error)), 400
+
+    @application.errorhandler(ElementError)
+    def invalid_element(error):
+        return render_template("error.html", message=str(error)), 400
+
+    @application.errorhandler(ReviewMissing)
+    def missing_review(error):
+        return render_template(
+            "error.html",
+            message="This review is unavailable in this session or has expired. Generate a new draft if needed.",
+        ), 404
+
+    @application.errorhandler(ReviewConflict)
+    def stale_review(error):
+        return render_template(
+            "error.html",
+            message="This review changed in another tab. Reload it before applying elements; your newer changes were preserved.",
+        ), 409
+
+    @application.errorhandler(ReviewFull)
+    def full_reviews(error):
+        return render_template(
+            "error.html",
+            message="Temporary review storage is full. Try again later or contact the maintainer.",
+        ), 503
 
     @application.errorhandler(ForecastUnavailable)
     def unavailable(error):
