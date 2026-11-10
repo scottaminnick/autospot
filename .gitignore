@@ -7,3 +7,4 @@ venv/
 *.idx
 .DS_Store
 *_AutoSpot.txt
+!tests/fixtures/phase0/**/messages/*.grib2

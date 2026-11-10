@@ -1,0 +1,18 @@
+[
+  {
+    "path": "awc_sigmet_area.json",
+    "source_url": "https://aviationweather.gov/gis/awc_sigmet_area.json",
+    "sha256": "71290473819441f0e84732603f309201860707fa095e1393a857a60e60f4c9f6",
+    "retrieved_at": "2026-11-10T06:11:28.241378+00:00",
+    "last_modified": "Mon, 09 Nov 2026 15:26:51 GMT",
+    "etag": "W/\"6af1e63b-1a43\""
+  },
+  {
+    "path": "firpoly.topojson",
+    "source_url": "https://aviationweather.gov/gis/firpoly.topojson",
+    "sha256": "e28daa0fa2918ee044382b17437b2d3cc77c22db0e620f402ecd4a0ee2c9c61c",
+    "retrieved_at": "2026-11-10T06:11:31.973649+00:00",
+    "last_modified": "Mon, 09 Nov 2026 15:26:51 GMT",
+    "etag": "\"6af1e63b-32b5e\""
+  }
+]

@@ -1,0 +1,58 @@
+{
+  "provider": "aws",
+  "sample": {
+    "index_record": {
+      "domain": "g",
+      "date": "20261109",
+      "time": "0000",
+      "expver": "0001",
+      "class": "od",
+      "type": "fc",
+      "stream": "oper",
+      "step": "12",
+      "levtype": "sfc",
+      "param": "10u",
+      "_offset": 17760876,
+      "_length": 609047
+    },
+    "metadata": {
+      "shortName": "10u",
+      "paramId": 165,
+      "name": "10 metre U wind component",
+      "units": "m s**-1",
+      "typeOfLevel": "heightAboveGround",
+      "level": 10,
+      "dataDate": 20261109,
+      "dataTime": 0,
+      "validityDate": 20261109,
+      "validityTime": 1200,
+      "stepType": "instant",
+      "startStep": 12,
+      "endStep": 12,
+      "stepUnits": 1,
+      "gridType": "regular_ll",
+      "Ni": 1440,
+      "Nj": 721,
+      "iDirectionIncrementInDegrees": 0.25,
+      "jDirectionIncrementInDegrees": 0.25,
+      "packingType": "grid_ccsds",
+      "bitsPerValue": 11,
+      "binaryScaleFactor": -4,
+      "decimalScaleFactor": 0,
+      "numberOfMissing": 0
+    },
+    "nearest": {
+      "lat": 24.75,
+      "lon": -77.75,
+      "value": -2.45025634765625,
+      "distance": 4.561188086271284,
+      "index": 376249
+    },
+    "source_url": "https://ecmwf-forecasts.s3.amazonaws.com/20261109/00z/ifs/0p25/oper/20261109000000-12h-oper-fc.grib2",
+    "content_range": "bytes 17760876-18369922/100183332",
+    "source_message_sha256": "27845d188ca1d1cb9f48f07239c3bc2136924d03a457434d87934b38bd7c9b8a",
+    "retrieved_at": "2026-11-10T06:18:39.746984+00:00"
+  },
+  "identical_message_to_ecmwf": true,
+  "note": "One field comparison, not an availability guarantee or offset reuse permission"
+}

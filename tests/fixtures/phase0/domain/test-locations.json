@@ -1,0 +1,103 @@
+{
+  "kind": "geometry_regression_expectations_not_operational_signoff",
+  "locations": [
+    {
+      "id": "original_bahamas",
+      "latitude": 24.71,
+      "longitude": -77.76,
+      "awc_geometry_relation": "outside",
+      "aawu_firs": [],
+      "expected_routing": "other_office_review"
+    },
+    {
+      "id": "kansas_city",
+      "latitude": 39.3,
+      "longitude": -94.7,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "procedure_aleutian_request",
+      "latitude": 51.7385,
+      "longitude": -161.965,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "anchorage",
+      "latitude": 61.2,
+      "longitude": -150,
+      "awc_geometry_relation": "outside",
+      "aawu_firs": [
+        "Anchorage Continental"
+      ],
+      "expected_routing": "AAWU"
+    },
+    {
+      "id": "pacific_west",
+      "latitude": 40,
+      "longitude": -170,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "pacific_east",
+      "latitude": 40,
+      "longitude": 170,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "honolulu",
+      "latitude": 21.3,
+      "longitude": -157.8,
+      "awc_geometry_relation": "outside",
+      "aawu_firs": [],
+      "expected_routing": "other_office_review"
+    },
+    {
+      "id": "atlantic_example",
+      "latitude": 38,
+      "longitude": -49,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "outside",
+      "latitude": 0,
+      "longitude": 0,
+      "awc_geometry_relation": "outside",
+      "aawu_firs": [],
+      "expected_routing": "other_office_review"
+    },
+    {
+      "id": "dateline_east",
+      "latitude": 40,
+      "longitude": 179.9,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "dateline_west",
+      "latitude": 40,
+      "longitude": -179.9,
+      "awc_geometry_relation": "inside",
+      "aawu_firs": [],
+      "expected_routing": "AWC"
+    },
+    {
+      "id": "awc_boundary",
+      "latitude": 30,
+      "longitude": -180,
+      "awc_geometry_relation": "boundary",
+      "aawu_firs": [],
+      "expected_routing": "boundary_review"
+    }
+  ]
+}
