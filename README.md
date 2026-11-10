@@ -91,3 +91,14 @@ interpolation and model-surface checks, with explicit unavailable reasons.
 The location map reports candidate AWC/Anchorage geometry and records forecaster
 coordination disposition. Automatic spot-service assignment remains disabled
 pending the operational boundary decision. See [PR 3 details and validation](docs/pr3-time-flight-level-domain.md).
+
+## PR 4: reviewable spot forecast elements
+
+The review page now supports forecaster-entered visibility, combined weather and
+AGL sky layers, explicit wind/gust review, optional common conditions and manual
+TEMPO/PROB30 groups. Rebuilding preserves normalized weather/sky/gust changes and
+keeps unresolved slots visible. Model precipitation phase/rate and independent
+cloud fractions provide context; unsupported diagnoses are not invented.
+Temporary, session-owned workspaces retain original guidance across worker
+recycling and reject stale-tab writes. Downloads remain editable drafts.
+See [PR 4 behavior, validation and limits](docs/pr4-reviewed-spot-forecast.md).

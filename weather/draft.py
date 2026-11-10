@@ -4,7 +4,8 @@ import base64
 from datetime import datetime
 import io
 import math
-from weather.coordinates import number, compatible
+from weather.aviation import wind, wind_components
+from weather.product import initialize_product, format_prevailing
 
 
 def direct(fields, name):
@@ -12,46 +13,25 @@ def direct(fields, name):
     return field.get("value") if field.get("status") == "direct" else None
 
 
-def wind(fields):
-    sources = [fields.get(n, {}) for n in ("u10", "v10")]
-    u, v = [number(f, "m/s") for f in sources]
-    if u is None or v is None or not compatible(sources):
-        return None
-    return wind_components(u, v)
-
-
-def wind_components(u, v):
-    speed = round(math.hypot(u, v) * 3600 / 1852)
-    direction = (round((math.degrees(math.atan2(-u, -v)) % 360) / 10) * 10) % 360 or 360
-    return "00000KT" if speed == 0 else f"{direction:03d}{speed:02d}KT"
-
-
-def build_draft(data, label):
+def build_draft(data, label, product=None):
+    product = product or initialize_product(data)
     start, end = (datetime.fromisoformat(data[k]) for k in ["start_utc", "end_utc"])
     lines = [
-        "DRAFT — FORECASTER COMPLETION REQUIRED",
+        "DRAFT — FORECASTER ELEMENT REVIEW RECORDED; NOT FINALIZED"
+        if product["complete"]
+        else "DRAFT — FORECASTER COMPLETION REQUIRED",
         f"Operation: {label}",
         f"Location: {data['latitude']:.4f}, {data['longitude']:.4f}",
         f"Valid {start:%Y-%m-%d %HZ} to {end:%Y-%m-%d %HZ}",
         f"Guidance: ECMWF IFS 0.25°, cycle {data['cycle_utc']}",
-        "Complete visibility, weather and sky from reviewed guidance.",
+        "Sky heights: feet AGL. Winds: true direction/knots; FL winds use standard pressure altitude.",
         "Domain requires forecaster verification.",
         f"Reference geometry: {data.get('domain', {}).get('classification', 'unknown_review')}; "
         f"recorded disposition: {data.get('domain', {}).get('disposition', 'pending')}.",
         data.get("domain", {}).get("message", "Verify service authority manually."),
         "",
     ]
-    by_time = {
-        datetime.fromisoformat(r["valid_utc"]): r
-        for r in data.get("window_rows", data["rows"])
-    }
-    times = sorted({start, *[t for t in by_time if start < t < end]})
-    for valid in times:
-        value = wind(by_time[valid]["fields"]) if valid in by_time else None
-        lines.append(
-            f"FM{valid:%d%H%M} {value or '[WIND REVIEW REQUIRED]'} "
-            "[VISIBILITY REQUIRED] [WEATHER REVIEW REQUIRED] [SKY REQUIRED]"
-        )
+    lines += format_prevailing(product, data["end_utc"])
     if data.get("requested_flight_levels"):
         lines += [
             "",
@@ -74,6 +54,7 @@ def build_draft(data, label):
         "Native times and exact request boundaries are preserved; gaps require manual completion.",
         "Boundary U/V, temperature/dewpoint and pressure may be linearly interpolated over adjacent native slots ≤3 hours; source times are listed below.",
         "Gust maxima retain source intervals in the guidance table; no automatic gust group is inferred.",
+        "Forecaster-entered or accepted weather, visibility and sky are recorded separately from original model guidance.",
     ]
     for row in data.get("window_rows", []):
         derived = [

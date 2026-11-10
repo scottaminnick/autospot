@@ -20,3 +20,11 @@
 table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
 th, td { border: 1px solid #ccc; padding: 6px; text-align: left; vertical-align: top; }
 details pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }
+.element-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.element-review fieldset { border: 1px solid #c1ccd5; margin: 12px 0; padding: 12px; }
+.time-slot, .conditional-review { padding: 12px; margin: 8px 0; border: 1px solid #c1ccd5; background: #f8fafc; }
+.time-slot summary, .conditional-review summary { cursor: pointer; font-weight: bold; overflow-wrap: anywhere; }
+.checkbox-label { font-weight: normal; margin-top: 12px; }
+.checkbox-label input { width: auto; }
+.use-weather { padding: 5px 8px; margin-top: 4px; font-size: .85rem; }
+input[type='datetime-local'] { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }

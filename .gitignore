@@ -12,3 +12,4 @@ venv/
 *_AutoSpot.txt
 !tests/fixtures/phase0/**/messages/*.grib2
 !tests/fixtures/pr3/*.grib2
+!tests/fixtures/pr4/*.grib2

@@ -1,0 +1,20 @@
+{
+  "kind": "local_two_worker_https_smoke",
+  "checked_at": "2026-11-10T11:54:05.728612+00:00",
+  "real_model_acquisition": true,
+  "elapsed_generation_seconds": 42.027,
+  "request_start_utc": "2026-11-10T13:00:00+00:00",
+  "flight_levels": [
+    30,
+    450
+  ],
+  "exact_start_preserved": true,
+  "forecaster_entries": "synthetic validation values, not operational weather",
+  "manual_elements_and_tempo_rebuilt": true,
+  "worker_recycling_shared_review": true,
+  "stale_tab_409": true,
+  "other_session_404": true,
+  "utf8_download_exact": true,
+  "map_chart_pngs": true,
+  "production_deployed": false
+}
