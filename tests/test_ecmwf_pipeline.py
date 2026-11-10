@@ -71,6 +71,10 @@ def synthetic_decode(body, spec, run, step, lat, lon):
         values.get(spec.name, 1.0),
         spec.unit,
         provenance={
+            "model": "ECMWF_IFS",
+            "grid": "0p25",
+            "sample_latitude": lat,
+            "sample_longitude": lon,
             "cycle_utc": run.isoformat(),
             "valid_utc": (run + timedelta(hours=step)).isoformat(),
             "interval_start_utc": (
@@ -416,7 +420,8 @@ class PipelineTests(unittest.TestCase):
         data = self.pipeline().fetch(forecast(RUN + timedelta(hours=13), 2), now=RUN)
         self.assertEqual([r["step"] for r in data["rows"]], [12, 15])
         text = build_draft(data, "Off hour")
-        self.assertIn("FM091300 [WIND REVIEW REQUIRED]", text)
+        self.assertIn("FM091300 04007KT", text)
+        self.assertIn("Time interpolation at 2026-11-09T13:00:00+00:00", text)
         self.assertNotIn("FM091200", text)
         self.assertEqual(data["start_utc"], (RUN + timedelta(hours=13)).isoformat())
 

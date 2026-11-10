@@ -1,0 +1,44 @@
+{
+  "source_url": "https://www.ngdc.noaa.gov/stp/space-weather/online-publications/miscellaneous/us-standard-atmosphere-1976/us-standard-atmosphere_st76-1562_noaa.pdf",
+  "source_sha256": "820a1d7c6bd533e3a845696601cc74013d7d851babac4dab35bee3b1feae35cf",
+  "table": "Table IV, geopotential altitude, English altitudes (not geometric altitude)",
+  "verification": "Values visually read from the original NOAA table; hPa equals source mb; pressure shown to 0.01 hPa",
+  "maximum_absolute_difference_hpa": 0.01,
+  "values": [
+    {
+      "flight_level": 30,
+      "pressure_hpa": 908.11,
+      "printed_page": 120
+    },
+    {
+      "flight_level": 60,
+      "pressure_hpa": 811.99,
+      "printed_page": 120
+    },
+    {
+      "flight_level": 180,
+      "pressure_hpa": 505.99,
+      "printed_page": 124
+    },
+    {
+      "flight_level": 300,
+      "pressure_hpa": 300.89,
+      "printed_page": 126
+    },
+    {
+      "flight_level": 360,
+      "pressure_hpa": 227.29,
+      "printed_page": 128
+    },
+    {
+      "flight_level": 390,
+      "pressure_hpa": 196.77,
+      "printed_page": 128
+    },
+    {
+      "flight_level": 450,
+      "pressure_hpa": 147.47,
+      "printed_page": 130
+    }
+  ]
+}

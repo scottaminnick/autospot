@@ -41,6 +41,17 @@
     <datalist id="durations">{% for n in [12, 24, 36, 48, 72] %}<option value="{{ n }}">{% endfor %}</datalist>
     <label for="sar_name">Operation name / label</label>
     <input id="sar_name" type="text" name="sar_name" maxlength="120" value="{{ values.sar_name }}">
+    <label for="flight_levels">Optional winds aloft (comma-separated flight levels)</label>
+    <input id="flight_levels" type="text" name="flight_levels" maxlength="100" placeholder="FL030, FL060, FL090, FL180, FL300">
+    <p>Leave blank for surface guidance only. FL means standard pressure altitude; available levels require valid pressure brackets above the model surface. Up to 12 levels, FL010–FL450.</p>
+    <label for="domain_disposition">Service-domain review / coordination</label>
+    <select id="domain_disposition" name="domain_disposition">
+      <option value="pending">Review pending — incomplete draft only</option>
+      <option value="awc_coordinated">AWC service coordinated by forecaster</option>
+      <option value="aawu_redirect">AAWU redirect / coordination required</option>
+      <option value="other_office_coordination">Other-office coordination required</option>
+    </select>
+    <p>The reference map classifies aviation geometry; confirm the responsible office under the local spot procedure.</p>
     <button type="submit">Generate draft</button>
   </form>
 </main>

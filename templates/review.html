@@ -7,8 +7,24 @@
   {% if data %}
   <p>Model: ECMWF IFS {{ data.grid }}. Cycle: {{ data.cycle_utc }}.<br>
      Requested UTC period: {{ data.start_utc }} to {{ data.end_utc }}.</p>
-  <p>Field quality: {{ data.counts.direct }} direct; {{ data.counts.missing }} missing;
+  <p>Native field quality: {{ data.counts.direct }} direct; {{ data.counts.missing }} missing;
      {{ data.counts.invalid }} invalid; {{ data.counts.unsupported }} unsupported.</p>
+  <h2>Location and service-domain review</h2>
+  <p><strong>{{ data.domain.classification }}</strong>: {{ data.domain.message }}<br>
+    Recorded disposition: {{ data.domain.disposition }}. This records the forecaster's selection; it does not establish operational coverage.<br>
+    Snapshot: {{ data.domain.snapshot }}.</p>
+  <p>Reference sources: {% for source in data.domain.sources %}<a href="{{ source }}" rel="noopener">{{ source }}</a> {% endfor %}</p>
+  {% if location_map %}<img class="meteogram" src="data:image/png;base64,{{ location_map }}" alt="Requested location and candidate aviation reference regions">{% endif %}
+  <p>Model elevation: {% if data.model_elevation.value is not none %}{{ '%.1f'|format(data.model_elevation.value) }} geopotential m{% else %}Unknown{% endif %}. Model orography is not station elevation; it is not used to convert flight levels to AGL or MSL.</p>
+  <h2>Exact requested-time guidance</h2>
+  <p>Continuous-field time interpolation uses two adjacent native slots no more than three hours apart. Missing native samples remain gaps. Categorical weather, cloud cover, precipitation and interval maxima are not interpolated.</p>
+  <table><thead><tr><th>UTC valid time</th><th>10 m wind / time source</th><th>Optional FL winds (true direction/knots)</th></tr></thead><tbody>
+  {% for row in data.window_rows %}<tr>
+    <td>{{ row.valid_utc }}{% if row.support_only %} (end support only){% endif %}</td>
+    <td>{{ wind_text(row.fields) or 'Unavailable — review required' }}<br>
+      {% if row.interpolated %}Interpolated boundary; initial weather/sky require review.<br>{% for name in ['u10', 'v10'] %}{% set field = row.fields.get(name, {}) %}{{ name }}: {{ field.status }}{% if field.provenance and field.provenance.source_times_utc %}; {{ field.provenance.source_times_utc|join(' → ') }}{% else %}; {{ field.reason }}{% endif %}<br>{% endfor %}{% else %}Native model time{% endif %}</td>
+    <td>{% for level in row.flight_levels %}FL{{ '%03d'|format(level.flight_level) }} — {% if level.status == 'derived' %}{{ wind_components(level.u, level.v) }}{% else %}Unavailable: {{ level.reason }}{% endif %}<br>Target {{ '%.2f'|format(level.pressure_pa / 100) }} hPa; brackets {{ level.provenance.bracket_hpa|join(' / ') }} hPa<br>{% else %}Not requested{% endfor %}</td>
+  </tr>{% endfor %}</tbody></table>
   {% endif %}
   <form action="{{ url_for('web.transmit') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -23,7 +39,7 @@
   {% endif %}
   {% if guidance %}
   <h2>Verified native-time guidance</h2>
-  <p>Support-only rows bracket the requested period. Values are nearest-grid-point samples; no time interpolation is applied.</p>
+  <p>Support-only rows bracket the requested period. This table preserves native nearest-grid-point samples. Requested-time interpolation is shown separately above.</p>
   <table>
     <thead><tr><th>UTC valid time</th><th>Wind</th><th>Gust maximum (kt) / UTC interval</th><th>Total cloud (%)</th><th>Instant precipitation (mm/h)</th><th>Source / unresolved fields</th></tr></thead>
     <tbody>{% for row in guidance %}<tr>
