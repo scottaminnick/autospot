@@ -1,17 +1,15 @@
 ## Railway legacy hotfix
 
 This branch starts from the Railway rollback revision `8cc94e8`. The original
-request form, GFS default, editor, meteogram placement and download button are
-retained. ECMWF IFS uses the existing validated GRIB2 pipeline with same-cycle
-mirror fallback and UTC time checks. Its first guess uses available surface
-guidance and marks visibility, weather and sky for manual completion. The table
-below the editor shows native-time model winds, gust maxima with source intervals,
-precipitation type and rate, cloud cover, temperature and dewpoint. The default
-legacy aloft table is currently available on the GFS path.
+request form, editor, meteogram placement and download button are retained.
+The pilot routes requests to GFS only. The ECMWF pipeline is parked in source.
+GFS supplies visibility and a cloud ceiling field along with cloud cover. The
+guidance table beside the editable report shows those point values by valid time.
 
 The GFS path retains its legacy forecast heuristics. This hotfix corrects run
 coverage checks, bounds GRIB range reads and preserves missing visibility,
-precipitation and cloud-base inputs. Review model-derived entries before
+precipitation and ceiling inputs. Only the reported ceiling can provide a
+cloud-height first guess; other cloud layer bases are left to review. Review model-derived entries before
 saving. The edited report downloads directly as UTF-8 text.
 
 # Rebuild status
@@ -29,17 +27,12 @@ Colab; converted here into a standalone, Railway-deployable web service.
 
 ## How it works
 
-1. User submits a lat/lon, start time, forecast duration, and model choice
+1. User submits a lat/lon, start time, and forecast duration
    via the web form.
-2. The app pulls only the needed GRIB2 fields for the selected global model
+2. The app pulls only the needed GRIB2 fields for GFS
    directly from public AWS buckets using HTTP byte-range requests (no full
    file downloads, no API key required):
    - **GFS** (global, 25km) from NOAA's `noaa-gfs-bdp-pds` bucket.
-   - **ECMWF IFS** (global, 25km) open data from the `ecmwf-forecasts`
-     bucket. ECMWF open data does not publish surface visibility, cloud-base
-     height, or layered cloud cover, so those degrade gracefully to sane
-     defaults; total cloud cover drives the ceiling/sky logic and CAPE stands
-     in for the convective-precip flag.
 3. `cfgrib`/`xarray` decode the GRIB2 bytes; surface fields drive the
    NWSI 10-813 trigger logic (wind shift, visibility change, ceiling
    category change, etc.) that builds FM/TEMPO/PROB30 groups.

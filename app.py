@@ -21,9 +21,6 @@ from urllib3.util import Retry
 from concurrent.futures import ThreadPoolExecutor
 
 from request_validation import RequestValidationError, parse_forecast_request, validate_report
-from weather.draft import build_spot_report, chart, guidance_rows
-from weather.fields import DataFault
-from weather.pipeline import retrieve_forecast
 
 # --- UI AND CSS LAYER ---
 REPORT_CSS = """
@@ -54,11 +51,8 @@ HTML_FORM = """
     <h2>NWSI 10-813 Spot Forecast Generator</h2>
     <form action='/submit' method='post'>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label>Model Routing:</label>
-        <select name='model_choice'>
-            <option value='GFS'>GFS (Global 25km)</option>
-            <option value='ECMWF'>ECMWF IFS (Global 25km)</option>
-        </select>
+        <label>Model: GFS (Global 25km)</label>
+        <input type='hidden' name='model_choice' value='GFS'>
 
         <div class="flex-row">
             <div class="flex-col">
@@ -182,57 +176,15 @@ class AviationTranslator:
         return wx_string if wx_string else "NSW"
 
     @staticmethod
-    def evaluate_clouds(tcdc, cbh, is_convective, prate, lcc=0, mcc=0, hcc=0):
-        val = float(tcdc)
-        if cbh > 30000 or np.isnan(cbh): cbh = 2500
-        cbh = max(100, cbh)
-
-        if val < 10:
-            if is_convective:
-                h_str = f"{int((round(cbh / 100) * 100) / 100):03d}"
-                return f"FEW{h_str}CB"
-            elif prate > 0:
-                h_str = f"{int((round(cbh / 100) * 100) / 100):03d}"
-                return f"FEW{h_str}"
-            return "SKC"
-
-        if lcc == 0 and mcc == 0 and hcc == 0: lcc = val
-        layers = []
-        current_cov = 0
-
-        if lcc >= 10:
-            current_cov = min(100, current_cov + lcc)
-            hgt = cbh if cbh < 8000 else 2500
-            layers.append((current_cov, hgt, is_convective))
-        if mcc >= 10:
-            current_cov = min(100, current_cov + mcc)
-            hgt = cbh if (not layers and cbh < 18000) else max(cbh + 4000, 10000)
-            layers.append((current_cov, hgt, False))
-        if hcc >= 10:
-            current_cov = min(100, current_cov + hcc)
-            hgt = cbh if (not layers) else max(cbh + 10000, 20000)
-            layers.append((current_cov, hgt, False))
-
-        if not layers: layers.append((val, cbh, is_convective))
-
-        cloud_strings = []
-        for cov, hgt, conv in layers:
-            if cov < 30: amt = "FEW"
-            elif cov < 60: amt = "SCT"
-            elif cov < 90: amt = "BKN"
-            else: amt = "OVC"
-
-            if hgt < 3000: rounded_ft = round(hgt / 100) * 100
-            elif hgt < 10000: rounded_ft = round(hgt / 500) * 500
-            else: rounded_ft = round(hgt / 1000) * 1000
-            if rounded_ft < 100: rounded_ft = 100
-
-            h_str = f"{int(rounded_ft / 100):03d}"
-            cb_str = "CB" if conv else ""
-            cloud_strings.append(f"{amt}{h_str}{cb_str}")
-            if amt == "OVC": break
-
-        return " ".join(cloud_strings[:3])
+    def evaluate_clouds(tcdc, ceiling_ft):
+        # GFS supplies one ceiling height, not bases for each cloud-cover layer.
+        # Leave the sky unresolved when the ceiling cannot be used as a first guess.
+        if ceiling_ft is None or not np.isfinite(ceiling_ft) or not 0 <= ceiling_ft <= 30000:
+            return "[SKY REQUIRED]"
+        if tcdc is None or not np.isfinite(tcdc) or tcdc < 50:
+            return "[SKY REQUIRED]"
+        height = max(100, round(ceiling_ft / 100) * 100)
+        return f"BKN{int(height / 100):03d}"
 
 # --- NWSI 10-813 LOGIC ENGINE ---
 class FirstGuessTAF:
@@ -264,7 +216,7 @@ class FirstGuessTAF:
         if base_wx != curr_wx: return True
 
         for t in [3000, 2000, 1500, 1000, 500, 200]:
-            if base["cbh"] is not None and current["cbh"] is not None and (base["cbh"] >= t) != (current["cbh"] >= t):
+            if base["ceiling"] is not None and current["ceiling"] is not None and (base["ceiling"] >= t) != (current["ceiling"] >= t):
                 return True
         return False
 
@@ -272,7 +224,7 @@ class FirstGuessTAF:
         wind = AviationTranslator.format_wind(data['wdir'], data['wspd'], data['gust'])
         vis = AviationTranslator.extract_visibility(data['vis'])
         wx = AviationTranslator.extract_present_weather(data['prate'], data['is_conv'], vis)
-        clouds = '[SKY REQUIRED]' if data['cbh'] is None or data['prate'] is None else AviationTranslator.evaluate_clouds(data['tcc'], data['cbh'], data['is_conv'], data['prate'], data.get('lcc', 0), data.get('mcc', 0), data.get('hcc', 0))
+        clouds = AviationTranslator.evaluate_clouds(data['tcc'], data['ceiling'])
         wx_str = f" {wx}" if wx != "NSW" else ""
         return f"{wind} {vis}{wx_str} {clouds}".strip()
 
@@ -357,21 +309,14 @@ def generate_meteogram(processed_taf, valid_start_time):
     times = [valid_start_time + datetime.timedelta(hours=h - hours[0]) for h in hours]
     time_labels = [t.strftime('%d/%H:%Mz') for t in times]
 
-    cbh_plot = []
+    ceiling_plot = []
     for d in processed_taf:
-        c_val = d['cbh']
-        t_val = float(d['tcc'])
-        is_conv = d['is_conv']
-        prate = d['prate']
+        c_val = d['ceiling']
 
         if c_val is None:
-            cbh_plot.append(np.nan)
+            ceiling_plot.append(np.nan)
             continue
-        if c_val > 30000 or c_val < 100 or np.isnan(c_val): c_val = 2500
-        if t_val < 10 and not is_conv and prate is not None and prate <= 0: cbh_plot.append(12000)
-        else:
-            if c_val >= 12000: cbh_plot.append(12000)
-            else: cbh_plot.append(c_val)
+        ceiling_plot.append(min(c_val, 12000) if np.isfinite(c_val) and c_val >= 0 else np.nan)
 
     vis = [min(float(d['vis']) / 1609.34, 10) if d['vis'] is not None else np.nan for d in processed_taf]
 
@@ -396,7 +341,7 @@ def generate_meteogram(processed_taf, valid_start_time):
     fig.tight_layout(pad=3.0)
 
     # Plot 1: Ceilings
-    ax1.plot(time_labels, cbh_plot, marker='o', color='#7f7f7f', linewidth=2)
+    ax1.plot(time_labels, ceiling_plot, marker='o', color='#7f7f7f', linewidth=2)
     ax1.axhline(500, color='purple', linestyle='--', alpha=0.5, label='LIFR (500ft)')
     ax1.axhline(1000, color='red', linestyle='--', alpha=0.5, label='IFR (1000ft)')
     ax1.axhline(3000, color='blue', linestyle='--', alpha=0.5, label='MVFR (3000ft)')
@@ -404,7 +349,7 @@ def generate_meteogram(processed_taf, valid_start_time):
     ax1.set_ylim(bottom=0, top=12000)
     ax1.margins(y=0)
     ax1.set_yticks(np.arange(0, 12001, 2500))
-    ax1.set_title('Lowest Cloud Base Height')
+    ax1.set_title('GFS Cloud Ceiling')
     ax1.legend(loc='upper right')
     ax1.grid(True, linestyle=':', alpha=0.6)
 
@@ -459,7 +404,7 @@ GFS_FIELDS = {
     'prate': ":PRATE:surface:",
     'cprat': ":ACPCP:surface:",
     'tcc': ":TCDC:entire atmosphere:",
-    'cbh': ":HGT:cloud base:",
+    'ceiling': ":HGT:cloud ceiling:",
     'hgt_sfc': ":HGT:surface:",
     'lcc': [":LCDC:low cloud layer:", ":TCDC:low cloud layer:"],
     'mcc': [":MCDC:middle cloud layer:", ":TCDC:middle cloud layer:"],
@@ -486,6 +431,16 @@ def locate_bytes(records, field_spec):
                     return start_byte, next_byte - 1
             return start_byte, ''
     return None, ''
+
+
+def ceiling_agl_ft(ceiling_height_m, surface_height_m):
+    """Convert GFS geopotential heights at ceiling and surface to feet AGL."""
+    if ceiling_height_m is None or surface_height_m is None:
+        return None
+    if not np.isfinite(ceiling_height_m) or not np.isfinite(surface_height_m):
+        return None
+    height_m = ceiling_height_m - surface_height_m
+    return height_m * 3.28084 if 0 <= height_m <= 9144 else None
 
 def get_latest_gfs_run(start, end, session):
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -667,7 +622,7 @@ def logout():
 def index():
     return render_template_string(HTML_FORM, css=REPORT_CSS)
 
-def render_report(report, meteogram, guidance_note=None, model_rows=()):
+def render_report(report, meteogram, guidance_note=None, model_rows=(), gfs_rows=()):
     return render_template_string(
         """<html><head>{{ css|safe }}</head><body>
         <div class="report-wrap">
@@ -704,10 +659,26 @@ def render_report(report, meteogram, guidance_note=None, model_rows=()):
                 </tr>{% endfor %}</tbody>
             </table>
             {% endif %}
+            {% if gfs_rows %}
+            <h3>GFS guidance by valid time</h3>
+            <p>Cloud cover is the fraction of each broad layer. The ceiling is one model height above ground, not the base of every layer.</p>
+            <table class="model-guidance">
+                <thead><tr><th scope="col">Valid time (UTC)</th>
+                    <th scope="col">Visibility (SM)</th><th scope="col">Ceiling (ft AGL)</th>
+                    <th scope="col">Cloud cover %<br>Total / low / mid / high</th>
+                </tr></thead>
+                <tbody>{% for row in gfs_rows %}<tr>
+                    <th scope="row">{{ row.valid_utc }}</th>
+                    <td>{{ row.visibility if row.visibility is not none else "—" }}</td>
+                    <td>{{ "%.0f"|format(row.ceiling) if row.ceiling is not none else "—" }}</td>
+                    <td>{% for cloud in row.clouds %}{{ "%.0f"|format(cloud) if cloud is not none else "—" }}{% if not loop.last %} / {% endif %}{% endfor %}</td>
+                </tr>{% endfor %}</tbody>
+            </table>
+            {% endif %}
             {% if meteogram %}<h3>Forecaster Meteogram</h3><img src="data:image/png;base64,{{ meteogram }}" style="width:100%;max-width:900px" alt="Model forecast time series">{% endif %}
         </div></body></html>""",
         css=REPORT_CSS, report=report, meteogram=meteogram, guidance_note=guidance_note,
-        model_rows=model_rows,
+        model_rows=model_rows, gfs_rows=gfs_rows,
     )
 
 
@@ -719,19 +690,8 @@ def submit():
     except RequestValidationError as error:
         abort(400, str(error))
 
-    if forecast.model == "ECMWF":
-        try:
-            guidance = retrieve_forecast(forecast)
-        except DataFault as error:
-            app.logger.warning("ECMWF retrieval failed: %s (%s)", error.code, error.state)
-            abort(502, "Verified ECMWF guidance was unavailable for this request. Try again or explicitly select GFS.")
-        return render_report(
-            build_spot_report(guidance, forecast.label),
-            chart(guidance),
-            "The editor contains a sustained-wind first guess. Review the gust and weather guidance below. Visibility and cloud-base heights are unavailable from this ECMWF feed.",
-            model_rows=guidance_rows(guidance),
-        )
-
+    if forecast.model != "GFS":
+        abort(400, "Only GFS is available for this pilot.")
     return submit_gfs(forecast)
 
 
@@ -815,20 +775,16 @@ def submit_gfs(forecast):
                 if active_true_elev is not None and final_true_elev is None:
                     final_true_elev = active_true_elev
 
-                delta_ft = active_true_elev - model_elev_ft if model_elev_ft is not None else 0
-                cbh_r = results.get(f"cbh_{h}")
-                cbh = (cbh_r * 3.28084) if cbh_r is not None else None
-                adj_cbh = max(100, cbh - delta_ft) if cbh is not None else None
+                ceiling_r = results.get(f"ceiling_{h}")
+                ceiling_ft = ceiling_agl_ft(ceiling_r, hgt_sfc_r)
 
                 lcc_r, mcc_r, hcc_r = results.get(f"lcc_{h}"), results.get(f"mcc_{h}"), results.get(f"hcc_{h}")
-                lcc = lcc_r if lcc_r is not None else 0
-                mcc = mcc_r if mcc_r is not None else 0
-                hcc = hcc_r if hcc_r is not None else 0
+                lcc, mcc, hcc = lcc_r, mcc_r, hcc_r
 
                 processed_taf.append({
                     'fhour': h, 'wdir': dr, 'wspd': spd, 'gust': gust,
                     'vis': vis, 'prate': prate, 'is_conv': is_conv,
-                    'tcc': tcc, 'cbh': adj_cbh, 'lcc': lcc, 'mcc': mcc, 'hcc': hcc
+                    'tcc': tcc, 'ceiling': ceiling_ft, 'lcc': lcc, 'mcc': mcc, 'hcc': hcc
                 })
 
         grid_res = {h: {} for h in fd_hours}
@@ -848,6 +804,12 @@ def submit_gfs(forecast):
         return render_report(
             engine.generate_report(taf_start_time),
             generate_meteogram(processed_taf, taf_start_time),
+            gfs_rows=[{
+                "valid_utc": (taf_start_time + datetime.timedelta(hours=row["fhour"] - hour_offset)).strftime("%Y-%m-%d %H:%MZ"),
+                "visibility": round(row["vis"] / 1609.34, 1) if row["vis"] is not None else None,
+                "ceiling": row["ceiling"],
+                "clouds": (row["tcc"], row["lcc"], row["mcc"], row["hcc"]),
+            } for row in processed_taf],
         )
     except (requests.RequestException, ValueError, OSError) as error:
         app.logger.warning("GFS request failed (%s)", type(error).__name__)
