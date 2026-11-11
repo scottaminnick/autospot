@@ -178,7 +178,11 @@ class AviationTranslator:
     @staticmethod
     def evaluate_clouds(tcdc, ceiling_ft):
         # GFS supplies one ceiling height, not bases for each cloud-cover layer.
-        # Leave the sky unresolved when the ceiling cannot be used as a first guess.
+        # A near-zero total cloud fraction supports SKC even when GFS encodes its
+        # no-ceiling sentinel as a very high geopotential height.
+        if tcdc is not None and np.isfinite(tcdc) and 0 <= tcdc < 6.25:
+            return "SKC"
+        # Leave other sky conditions unresolved without a usable layer height.
         if ceiling_ft is None or not np.isfinite(ceiling_ft) or not 0 <= ceiling_ft <= 30000:
             return "[SKY REQUIRED]"
         if tcdc is None or not np.isfinite(tcdc) or tcdc < 50:
@@ -670,7 +674,7 @@ def render_report(report, meteogram, guidance_note=None, model_rows=(), gfs_rows
                 <tbody>{% for row in gfs_rows %}<tr>
                     <th scope="row">{{ row.valid_utc }}</th>
                     <td>{{ row.visibility if row.visibility is not none else "—" }}</td>
-                    <td>{{ "%.0f"|format(row.ceiling) if row.ceiling is not none else "—" }}</td>
+                    <td>{% if row.ceiling is not none %}{{ "%.0f"|format(row.ceiling) }}{% elif row.clouds[0] is not none and 0 <= row.clouds[0] < 6.25 %}No ceiling (SKC){% else %}—{% endif %}</td>
                     <td>{% for cloud in row.clouds %}{{ "%.0f"|format(cloud) if cloud is not none else "—" }}{% if not loop.last %} / {% endif %}{% endfor %}</td>
                 </tr>{% endfor %}</tbody>
             </table>
