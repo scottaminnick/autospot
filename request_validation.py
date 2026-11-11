@@ -46,9 +46,9 @@ def parse_forecast_request(form, now=None):
                 f"{key.capitalize()} must be between {-bound} and {bound} degrees."
             )
         coordinates.append(value)
-    model = single(form, "model_choice", "ECMWF")
-    if model not in ("ECMWF", "GFS"):
-        raise RequestValidationError("Choose ECMWF or GFS.")
+    model = single(form, "model_choice", "GFS")
+    if model != "GFS":
+        raise RequestValidationError("Only GFS is available for this pilot.")
     duration = single(form, "duration", "")
     if not re.fullmatch(r"[0-9]{1,2}", duration) or not 1 <= int(duration) <= 72:
         raise RequestValidationError(
