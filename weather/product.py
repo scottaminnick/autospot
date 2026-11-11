@@ -267,7 +267,7 @@ def prevailing_rows(product):
     return result
 
 
-def condition_text(values, partial=False):
+def condition_text(values, partial=False, *, wind_review_marker=True):
     tokens = []
     for name in ELEMENTS:
         value = values[name] if partial else values[name]["value"]
@@ -283,6 +283,7 @@ def condition_text(values, partial=False):
         if (
             name == "wind"
             and not partial
+            and wind_review_marker
             and value is not None
             and not values[name]["reviewed"]
         ):
@@ -290,13 +291,14 @@ def condition_text(values, partial=False):
     return " ".join(tokens)
 
 
-def format_prevailing(product, end):
+def format_prevailing(product, end, *, wind_review_marker=True):
     rows = prevailing_rows(product)
     lines = []
     for i, row in enumerate(rows):
         valid = utc(row["valid_utc"])
         next_time = utc(rows[i + 1]["valid_utc"]) if i + 1 < len(rows) else utc(end)
-        lines.append(f"FM{valid:%d%H%M} {condition_text(row)}")
+        conditions = condition_text(row, wind_review_marker=wind_review_marker)
+        lines.append(f"FM{valid:%d%H%M} {conditions}")
         for group in product["groups"]:
             a, b = max(valid, utc(group["start"])), min(next_time, utc(group["end"]))
             if a < b:

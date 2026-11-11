@@ -4,7 +4,7 @@ import base64
 from datetime import datetime
 import io
 import math
-from weather.aviation import wind, wind_components
+from weather.aviation import precipitation_context, wind, wind_components
 from weather.document import aloft_lines
 from weather.product import initialize_product, format_prevailing
 
@@ -83,7 +83,7 @@ def build_spot_report(data, label):
             f"VALID {start:%Y-%m-%d %H:%MZ} TO {end:%Y-%m-%d %H:%MZ}",
             f"DATA BASED ON ECMWF IFS 0.25° {cycle:%Y-%m-%d %H:%MZ}",
             "",
-            *format_prevailing(product, data["end_utc"]),
+            *format_prevailing(product, data["end_utc"], wind_review_marker=False),
             *aloft_lines(data),
         ]
     )
@@ -100,6 +100,7 @@ def guidance_rows(data):
             )
         gust = fields.get("gust10", {})
         interval = gust.get("provenance") or {}
+        precipitation = precipitation_context(fields, row["valid_utc"])
         problems = [
             f"{k}: {v['status']} ({v.get('reason') or 'review required'})"
             for k, v in fields.items()
@@ -124,6 +125,18 @@ def guidance_rows(data):
                 "rate": direct(fields, "precip_rate") * 3600
                 if direct(fields, "precip_rate") is not None
                 else None,
+                "phase": precipitation["phase"]
+                if precipitation["status"] == "derived"
+                else None,
+                "rain_candidate": precipitation["suggestion"],
+                "layer_cloud": [
+                    v * 100 if (v := direct(fields, name)) is not None else None
+                    for name in ("lcc", "mcc", "hcc")
+                ],
+                "temperature_c": [
+                    v - 273.15 if (v := direct(fields, name)) is not None else None
+                    for name in ("temperature2", "dewpoint2")
+                ],
                 "problems": problems,
                 "providers": sorted(
                     {

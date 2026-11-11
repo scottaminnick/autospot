@@ -17,7 +17,7 @@ import requests
 
 from request_validation import ForecastRequest
 from weather.cache import Cache
-from weather.draft import build_draft, chart
+from weather.draft import build_draft, build_spot_report, chart, guidance_rows
 from weather.fields import (
     DataFault,
     FieldValue,
@@ -530,6 +530,20 @@ class PipelineTests(unittest.TestCase):
             self.assertEqual(
                 d["provenance"]["object_identity"][0], '"ecmwf-2026110900-12-2"'
             )
+
+    def test_simple_report_exposes_guidance_without_repeating_wind_review(self):
+        data = self.pipeline().fetch(forecast(), now=RUN)
+        report = build_spot_report(data, "Guidance test")
+        self.assertNotIn("[WIND/GUST REVIEW REQUIRED]", report)
+        self.assertIn("[VISIBILITY REQUIRED]", report)
+        self.assertIn("[WEATHER REVIEW REQUIRED]", report)
+        self.assertIn("[SKY REQUIRED]", report)
+        first = guidance_rows(data)[0]
+        self.assertIsNotNone(first["wind"])
+        self.assertEqual(first["phase"], "No precipitation")
+        self.assertEqual(first["rate"], 0)
+        self.assertEqual(first["cloud"], 67.1875)
+        self.assertTrue(guidance_rows(data)[-1]["support_only"])
 
     def test_chart_uses_raw_fields_and_renders_a_png(self):
         import base64
