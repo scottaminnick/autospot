@@ -1,0 +1,365 @@
+{
+  "reference_decoder": "GDAL 3.10.3, released 2025/04/01",
+  "comparisons": [
+    {
+      "fixture": "20261109-00-f012-10u-sfc.grib2",
+      "field": "u10",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        24.75,
+        -77.75
+      ],
+      "units": "m/s",
+      "autospot": -2.45025634765625,
+      "gdal": -2.45025634765625,
+      "abs_difference": 0.0,
+      "tolerance": 0.0625
+    },
+    {
+      "fixture": "20261109-00-f012-10v-sfc.grib2",
+      "field": "v10",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        24.75,
+        -77.75
+      ],
+      "units": "m/s",
+      "autospot": -2.776123046875,
+      "gdal": -2.776123046875,
+      "abs_difference": 0.0,
+      "tolerance": 0.0625
+    },
+    {
+      "fixture": "20261109-00-f012-10fg-sfc.grib2",
+      "field": "gust10",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "step_hours": [
+        11,
+        12
+      ],
+      "grid_point": [
+        24.75,
+        -77.75
+      ],
+      "units": "m/s",
+      "autospot": 5.7165151834487915,
+      "gdal": 5.7165150642395,
+      "abs_difference": 1.192092913271381e-07,
+      "tolerance": 0.0625
+    },
+    {
+      "fixture": "20261109-00-f000-z-sfc.grib2",
+      "field": "surface_geopotential",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "step_hours": [
+        0,
+        0
+      ],
+      "grid_point": [
+        24.75,
+        -77.75
+      ],
+      "units": "m2/s2",
+      "autospot": 14.8818359375,
+      "gdal": 14.8818359375,
+      "abs_difference": 0.0,
+      "tolerance": 1.0
+    },
+    {
+      "fixture": "ifs-20261109-00-f012-u-925.grib2",
+      "field": "u_925",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        24.75,
+        -77.75
+      ],
+      "units": "m/s",
+      "autospot": -2.3480377197265625,
+      "gdal": -2.34803771972656,
+      "abs_difference": 2.6645352591003757e-15,
+      "tolerance": 0.0625
+    },
+    {
+      "fixture": "ifs-20261109-00-f012-v-100.grib2",
+      "field": "v_100",
+      "cycle_utc": "2026-11-09T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        24.75,
+        -77.75
+      ],
+      "units": "m/s",
+      "autospot": -0.522216796875,
+      "gdal": -0.522216796875,
+      "abs_difference": 0.0,
+      "tolerance": 0.03125
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        25.75,
+        142.25
+      ],
+      "units": "code_4.201",
+      "autospot": 1.0,
+      "gdal": 1.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        25.75,
+        142.25
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.01215362548828125,
+      "gdal": 0.0121536254882812,
+      "abs_difference": 5.0306980803327406e-17,
+      "tolerance": 3.814697265625e-06
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        59.25,
+        -151.0
+      ],
+      "units": "code_4.201",
+      "autospot": 3.0,
+      "gdal": 3.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        59.25,
+        -151.0
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.000453948974609375,
+      "gdal": 0.000453948974609375,
+      "abs_difference": 0.0,
+      "tolerance": 3.814697265625e-06
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        61.5,
+        -147.25
+      ],
+      "units": "code_4.201",
+      "autospot": 5.0,
+      "gdal": 5.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        61.5,
+        -147.25
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.00206756591796875,
+      "gdal": 0.00206756591796875,
+      "abs_difference": 0.0,
+      "tolerance": 3.814697265625e-06
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        60.0,
+        -140.25
+      ],
+      "units": "code_4.201",
+      "autospot": 6.0,
+      "gdal": 6.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        60.0,
+        -140.25
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.001880645751953125,
+      "gdal": 0.00188064575195312,
+      "abs_difference": 4.9873299934333204e-18,
+      "tolerance": 3.814697265625e-06
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        61.0,
+        -147.0
+      ],
+      "units": "code_4.201",
+      "autospot": 7.0,
+      "gdal": 7.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        61.0,
+        -147.0
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.001476287841796875,
+      "gdal": 0.00147628784179688,
+      "abs_difference": 4.9873299934333204e-18,
+      "tolerance": 3.814697265625e-06
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        -60.25,
+        9.5
+      ],
+      "units": "code_4.201",
+      "autospot": 8.0,
+      "gdal": 8.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        -60.25,
+        9.5
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.000133514404296875,
+      "gdal": 0.000133514404296875,
+      "abs_difference": 0.0,
+      "tolerance": 3.814697265625e-06
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-ptype.grib2",
+      "field": "precip_type",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        41.75,
+        72.25
+      ],
+      "units": "code_4.201",
+      "autospot": 12.0,
+      "gdal": 12.0,
+      "abs_difference": 0.0,
+      "tolerance": 0
+    },
+    {
+      "fixture": "ifs-20261110-00-f012-tprate.grib2",
+      "field": "precip_rate",
+      "cycle_utc": "2026-11-10T00:00:00+00:00",
+      "step_hours": [
+        12,
+        12
+      ],
+      "grid_point": [
+        41.75,
+        72.25
+      ],
+      "units": "kg/m2/s",
+      "autospot": 0.0002593994140625,
+      "gdal": 0.0002593994140625,
+      "abs_difference": 0.0,
+      "tolerance": 3.814697265625e-06
+    }
+  ]
+}

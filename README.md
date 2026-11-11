@@ -9,12 +9,10 @@ reviewed guidance and follows the existing AWC coordination/archive workflow.
 [PR 2](docs/pr2-ecmwf-pipeline.md) replaces retrieval with validated fields,
 bounded downloading, shared positive caching and same-run provider fallback.
 
-The current path supports ECMWF IFS 0.25°. GFS is unavailable until its adapter
-passes the same contracts. Missing visibility/cloud bases do not become normal
-weather values: the draft contains explicit completion prompts. Automatic weather
-coding, time/FL interpolation, operational domain gating and finalization/version
-tracking remain later rebuild work. Aloft output is withheld pending correct FL
-handling in PR 3; pressure-field decode contracts are available for that work.
+The app supports ECMWF IFS 0.25° and optional flight-level winds. GFS is
+unavailable pending validation. Required visibility, weather and sky elements
+remain explicit until the forecaster completes them. Review the
+[pilot results and release status](docs/pr6-release-verification.md).
 
 ## Install and test
 
@@ -73,8 +71,8 @@ Production rollout remains a separate step after staging review.
 3. Download the edited report as UTF-8 text and use the established coordination
    and NAOC archive workflow. The download does not send or archive a report.
 
-Draft/version finalization, missing-field completion, authoritative spot-domain
-routing, and provenance packages are covered by later PRs.
+The approved text and provenance ZIP are available after saved-version approval.
+Confirm service responsibility under the local procedure before finalizing.
 
 ## Credit
 
