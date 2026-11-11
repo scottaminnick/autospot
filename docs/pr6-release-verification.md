@@ -3,7 +3,7 @@
 PR 6 adds verification and release documentation for the merged AutoSpot
 application. The intended use is an ECMWF-first draft for an AWC forecaster.
 Review, coordination, issuance and archiving follow the existing AWC process.
-Operational acceptance and the Railway rollback rehearsal are open.
+Operational forecaster acceptance is open.
 
 ## Verification completed
 
@@ -64,8 +64,8 @@ has a `staging` environment and a `pilot` service. The service configuration
 uses one us-west2 replica, one Gunicorn worker, a 180-second worker timeout,
 worker recycling at five requests plus up to two jitter, a 60-second
 deployment readiness timeout at `/healthz`, and serverless sleep. The start
-command runs `python -m pip check` before Gunicorn. The service is waiting for
-its two pilot credentials and a source connection.
+command runs `python -m pip check` before Gunicorn. The pilot uses credentials
+scoped to its staging service and an exact GitHub revision.
 
 Production was already following `main` with automatic deployments. Railway
 showed the PR 5 merge at deployment `2dd71131-175a-41c2-8a76-0b071ffea764`.
@@ -74,8 +74,7 @@ Build logs showed Railpack using Python 3.12.14 and installing
 Production's start command overrides the Procfile, uses a 180-second timeout
 and omits worker recycling. Production has one replica, serverless sleep and
 no configured readiness path. These observations came from the production
-configuration and logs. The staging startup and installed package inventory
-still need verification.
+configuration and logs.
 
 1. Configure fresh `APP_PASSWORD` and `SECRET_KEY` only on the pilot service.
    Use the Railway Variables view or an authorized secret-setting operation.
@@ -97,13 +96,12 @@ still need verification.
    request. Each active model request uses a child process with up to four
    download threads, a 75-second transport budget and an 80-second web wait.
    Confirm that the chosen configuration meets the pilot workload.
-5. Rehearse rollback on staging. Use **Rollback** on the recorded PR 5
-   deployment in Railway's Deployments tab. Verify the active revision,
-   health, login and draft generation, then return to the pinned candidate
-   and repeat those checks. Record both deployment IDs, observed recovery
-   time and any session loss. Railway restores the image and variables
-   together. If the image is past retention, redeploy from the known-good
-   SHA and restore the intended configuration. See
+5. Rehearse rollback on staging. Redeploy the recorded PR 5 deployment,
+   verify the active revision, health, login and draft generation, and
+   redeploy the saved candidate. Record both deployment IDs, recovery time,
+   and whether a fresh login is required. If using the Railway dashboard's
+   **Rollback** action for production, remember that it also restores the
+   previous variables. See
    [Railway deployment actions](https://docs.railway.com/deployments/deployment-actions).
 
 ```sh
@@ -119,6 +117,28 @@ new cycle if one becomes available. Use the logged request IDs and cache
 evidence to interpret the timings. Local cache and draft stores are ephemeral.
 Export approved text and ZIPs to the established archive before replacement
 or rollback.
+
+## Hosted pilot results
+
+Railway verified readiness and installed the same 35 pinned packages on PR 5
+and PR 6. The startup consistency check passed for both deployments. The
+locked package audit reported no known vulnerabilities. The pilot served
+authenticated HTTPS drafts and recycled its Gunicorn worker during the checks.
+
+| Hosted check | Result |
+|---|---|
+| 24-hour surface draft | 28.169 s to review on a fresh cache, 8.447 s on the identical repeat. Both selected the November 10 18Z run. The repeat exceeded the proposed 5 s target. |
+| Two simultaneous six-hour drafts | 29.389 s and 29.884 s to review from distinct sessions. The single worker processed the submits in sequence. |
+| Archive smoke with FL030 and FL450 | Explicit approval with synthetic review entries produced matching UTF-8 text and ZIP. All manifest file hashes matched. |
+| Rollback rehearsal | Railway redeployed the saved PR 5 build and then the saved PR 6 build. Readiness passed after 31.5 s and 25.2 s respectively. The old test session needed a fresh login. |
+| Railway resource sampling | Peak samples were 0.193 GB of memory and 0.784 CPU cores across the pilot measurements. Railway sampled every 30 seconds. |
+
+The [hosted evidence](evidence/pr6-railway-pilot.json) records the deployment
+revisions and request IDs. The pilot demonstrates the workflow and timing
+for these requests. The pilot is pinned to the tested revision recorded in
+the evidence. In Railway, use the staging service's Variables view to retrieve
+its login password. Review the repeat latency alongside your operational cases
+before release.
 
 ## Forecaster pilot and release decision
 
@@ -138,7 +158,8 @@ guidance or imagery used, discrepancy and its disposition, elapsed time, and
 reviewer decision. Complete one approved test package and verify its text,
 original guidance, forecast chart, manifest and archive procedure.
 
-Keep PR 6 in draft while the staging results and Scott's acceptance are open.
+Keep PR 6 in draft while Scott reviews representative output and the
+observed performance.
 A merge to `main` can deploy immediately. Before release, confirm the
 production deployment and known-good rollback ID in Railway, coordinate a
 time for the change, and confirm that no active draft relies on temporary
