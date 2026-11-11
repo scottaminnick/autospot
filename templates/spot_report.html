@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}AutoSpot forecast report{% endblock %}
+{% macro raw(fields, name) -%}
+  {%- set field = fields.get(name) -%}
+  {%- if field and field.status == 'direct' and field.value is not none -%}
+    {{ field.value }}
+  {%- else -%}
+    {{ (field.status if field else 'unavailable')|replace('_', ' ') }}
+  {%- endif -%}
+{%- endmacro %}
+{% block content %}
+<main class="report-wrap">
+  <h1>Forecaster Review &amp; Edit</h1>
+  <p>Complete the unresolved weather, visibility and sky entries before saving. <a href="#ecmwf-guidance">View ECMWF guidance</a></p>
+  <form action="{{ url_for('web.transmit', approved=True) }}" method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="taf_content">Spot forecast text</label>
+    <textarea id="taf_content" name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
+    <button type="submit" class="btn-transmit">Approve &amp; Save Report</button>
+  </form>
+  <section id="ecmwf-guidance" aria-labelledby="meteogram-heading">
+    <h2 id="meteogram-heading">Forecaster Meteogram</h2>
+    <p>ECMWF IFS 0.25°. Visibility and cloud-base heights are unavailable from this feed.</p>
+    {% if chart %}<img class="meteogram" src="data:image/png;base64,{{ chart }}" alt="ECMWF winds, cloud cover, precipitation rate, temperature and dewpoint">{% endif %}
+    {% if data %}
+    <details>
+      <summary>Raw ECMWF values at native model times</summary>
+      <div class="native-table" role="region" aria-label="Raw ECMWF guidance table" tabindex="0">
+        <table>
+          <thead><tr>
+            <th scope="col">Valid time (UTC)</th>
+            <th scope="col">10 m U / V (m/s)</th>
+            <th scope="col">10 m gust (m/s)</th>
+            <th scope="col">2 m temp / dewpoint (K)</th>
+            <th scope="col">Total cloud (fraction)</th>
+            <th scope="col">Precip rate (kg/m²/s) / type code</th>
+          </tr></thead>
+          <tbody>
+          {% for row in data.rows %}
+            <tr>
+              <th scope="row">{{ row.valid_utc }}{% if row.support_only %}<br>Support only{% endif %}</th>
+              <td>{{ raw(row.fields, 'u10') }} / {{ raw(row.fields, 'v10') }}</td>
+              <td>{{ raw(row.fields, 'gust10') }}</td>
+              <td>{{ raw(row.fields, 'temperature2') }} / {{ raw(row.fields, 'dewpoint2') }}</td>
+              <td>{{ raw(row.fields, 'tcc') }}</td>
+              <td>{{ raw(row.fields, 'precip_rate') }} / {{ raw(row.fields, 'precip_type') }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <details><summary>All fields and source metadata (JSON)</summary><pre>{{ data|tojson(indent=2) }}</pre></details>
+    </details>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

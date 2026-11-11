@@ -178,6 +178,51 @@ class WebReviewTests(unittest.TestCase):
         form.update(changes)
         return form
 
+    def test_original_request_opens_one_editor_and_downloads_the_edited_text(self):
+        page = self.client.get("/", base_url=BASE)
+        self.assertIn('action="/generate"', page.text)
+        self.assertNotIn('name="domain_disposition"', page.text)
+        now = datetime.now(timezone.utc)
+        response = self.client.post(
+            "/generate",
+            base_url=BASE,
+            data={
+                "csrf_token": self.token(self.client),
+                "latitude": "40",
+                "longitude": "-100",
+                "start_date": now.strftime("%Y-%m-%d"),
+                "start_hour": now.strftime("%H"),
+                "duration": "12",
+                "sar_name": "Météo — <SAR>",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('action="/save-report"', response.text)
+        self.assertIn("SAR: Météo — &lt;SAR&gt;", response.text)
+        self.assertIn("[VISIBILITY REQUIRED]", response.text)
+        self.assertIn("DATA BASED ON ECMWF IFS", response.text)
+        self.assertLess(
+            response.text.index('<textarea id="taf_content"'),
+            response.text.index('id="ecmwf-guidance"'),
+        )
+        self.assertIn("<td>0 / -10</td>", response.text)
+        self.assertNotIn('name="revision"', response.text)
+        store = self.app.extensions["reviews"]
+        with store.connection() as db:
+            self.assertEqual(
+                db.execute("SELECT count(*) FROM reviews").fetchone()[0], 0
+            )
+
+        edited = "SAR: Météo — <SAR>\nForecaster edits 🙂"
+        result = self.client.post(
+            "/save-report",
+            base_url=BASE,
+            data={"csrf_token": self.token(self.client), "taf_content": edited},
+        )
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.data, edited.encode("utf-8"))
+        self.assertIn("SPOT_TAF_", result.headers["Content-Disposition"])
+
     def test_generate_owned_workspace_common_completion_and_original_unchanged(self):
         url = self.create()
         before = deepcopy(self.workspace(url)[1]["data"])

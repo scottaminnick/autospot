@@ -5,6 +5,7 @@ from datetime import datetime
 import io
 import math
 from weather.aviation import wind, wind_components
+from weather.document import aloft_lines
 from weather.product import initialize_product, format_prevailing
 
 
@@ -68,6 +69,26 @@ def build_draft(data, label, product=None):
     return "\n".join(lines)
 
 
+def build_spot_report(data, label):
+    """Editable first guess with the request and model identification in the text."""
+    start = datetime.fromisoformat(data["start_utc"])
+    end = datetime.fromisoformat(data["end_utc"])
+    cycle = datetime.fromisoformat(data["cycle_utc"])
+    lat, lon = data["latitude"], data["longitude"]
+    location = f"{abs(lat):.4f}{'S' if lat < 0 else 'N'}/{abs(lon):.4f}{'W' if lon < 0 else 'E'}"
+    product = initialize_product(data)
+    return "\n".join(
+        [
+            f"SAR: {label}  LOC: {location}",
+            f"VALID {start:%Y-%m-%d %H:%MZ} TO {end:%Y-%m-%d %H:%MZ}",
+            f"DATA BASED ON ECMWF IFS 0.25° {cycle:%Y-%m-%d %H:%MZ}",
+            "",
+            *format_prevailing(product, data["end_utc"]),
+            *aloft_lines(data),
+        ]
+    )
+
+
 def guidance_rows(data):
     rows = []
     for row in data["rows"]:
@@ -129,8 +150,8 @@ def chart(data):
     def values(key):
         return [r[key] if r[key] is not None else float("nan") for r in rows]
 
-    figure = Figure(figsize=(10, 7), layout="constrained")
-    axes = figure.subplots(3, 1, sharex=True)
+    figure = Figure(figsize=(10, 8), layout="constrained")
+    axes = figure.subplots(4, 1, sharex=True)
     axes[0].plot(times, values("speed"), marker="o", label="10 m sustained wind")
     axes[0].plot(
         times,
@@ -141,15 +162,37 @@ def chart(data):
     )
     axes[0].set_ylabel("Wind (kt)")
     axes[0].legend(fontsize=8)
-    axes[1].plot(times, values("cloud"), marker="o", linestyle="none")
-    axes[1].set_ylabel("Total cloud (%)")
+    axes[1].plot(times, values("cloud"), marker="o", label="Total")
+    for key, label in (("lcc", "Low"), ("mcc", "Middle"), ("hcc", "High")):
+        fraction = [direct(row["fields"], key) for row in data["rows"]]
+        axes[1].plot(
+            times,
+            [value * 100 if value is not None else float("nan") for value in fraction],
+            marker=".",
+            linestyle="--",
+            label=label,
+        )
+    axes[1].set_ylabel("Cloud cover (%)")
     axes[1].set_ylim(0, 100)
+    axes[1].legend(fontsize=8, ncols=4)
     axes[2].plot(times, values("rate"), marker="o", linestyle="none")
     axes[2].set_ylabel("Instant precip\n(mm/h)")
+
+    for key, label in (("temperature2", "Temperature"), ("dewpoint2", "Dewpoint")):
+        kelvin = [direct(row["fields"], key) for row in data["rows"]]
+        axes[3].plot(
+            times,
+            [value - 273.15 if value is not None else float("nan") for value in kelvin],
+            marker=".",
+            label=label,
+        )
+    axes[3].set_ylabel("2 m temp (°C)")
+    axes[3].legend(fontsize=8)
+
     from datetime import timezone
 
-    axes[2].xaxis.set_major_formatter(DateFormatter("%Y-%m-%d\n%H%MZ", tz=timezone.utc))
-    axes[2].set_xlabel("UTC native valid time; gaps indicate unavailable data")
+    axes[3].xaxis.set_major_formatter(DateFormatter("%Y-%m-%d\n%H%MZ", tz=timezone.utc))
+    axes[3].set_xlabel("UTC native valid time; gaps indicate unavailable data")
     for ax in axes:
         ax.grid(alpha=0.3)
         ax.axvline(
@@ -161,7 +204,7 @@ def chart(data):
         f"{data['latitude']:.4f}, {data['longitude']:.4f} | Cycle {data['cycle_utc']}\n"
         f"Requested {data['start_utc']} to {data['end_utc']}\n"
         f"Native quality: {data.get('counts', {}).get('direct', 0)} direct / {data.get('counts', {}).get('missing', 0)} missing / "
-        f"{data.get('counts', {}).get('unsupported', 0)} unsupported / {data.get('counts', {}).get('invalid', 0)} invalid; ceiling unavailable from this feed",
+        f"{data.get('counts', {}).get('unsupported', 0)} unsupported / {data.get('counts', {}).get('invalid', 0)} invalid; visibility and ceiling unavailable from this feed",
         fontsize=9,
     )
     buffer = io.BytesIO()

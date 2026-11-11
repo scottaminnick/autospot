@@ -9,12 +9,9 @@ reviewed guidance and follows the existing AWC coordination/archive workflow.
 [PR 2](docs/pr2-ecmwf-pipeline.md) replaces retrieval with validated fields,
 bounded downloading, shared positive caching and same-run provider fallback.
 
-The current path supports ECMWF IFS 0.25°. GFS is unavailable until its adapter
-passes the same contracts. Missing visibility/cloud bases do not become normal
-weather values: the draft contains explicit completion prompts. Automatic weather
-coding, time/FL interpolation, operational domain gating and finalization/version
-tracking remain later rebuild work. Aloft output is withheld pending correct FL
-handling in PR 3; pressure-field decode contracts are available for that work.
+The request form uses ECMWF IFS 0.25°. GFS is unavailable pending adapter
+validation. The first guess leaves unresolved visibility, weather, and sky for
+the forecaster to complete.
 
 ## Install and test
 
@@ -68,13 +65,12 @@ Production rollout remains a separate step after staging review.
 
 ## Forecaster workflow
 
-1. Sign in and request a location, UTC start and duration (1–72 hours).
-2. Review source times, field quality and original model guidance; complete and edit the draft.
-3. Download the edited report as UTF-8 text and use the established coordination
-   and NAOC archive workflow. The download does not send or archive a report.
+1. Enter the location, UTC start, forecast duration, and SAR label. Select **Generate Report**.
+2. Review the ECMWF meteogram and native values. Edit the first guess directly in the text box.
+3. Select **Approve & Save Report** to download the edited text as a local UTF-8 file. Follow the established coordination and archive process.
 
-Draft/version finalization, missing-field completion, authoritative spot-domain
-routing, and provenance packages are covered by later PRs.
+The default request page goes straight to the editable report. The versioned
+review and provenance archive are available as a future workflow in draft PR #9.
 
 ## Credit
 
