@@ -4,8 +4,10 @@ This branch starts from the Railway rollback revision `8cc94e8`. The original
 request form, GFS default, editor, meteogram placement and download button are
 retained. ECMWF IFS uses the existing validated GRIB2 pipeline with same-cycle
 mirror fallback and UTC time checks. Its first guess uses available surface
-guidance and marks visibility, weather and sky for manual completion. The
-default legacy aloft table is currently available on the GFS path.
+guidance and marks visibility, weather and sky for manual completion. The table
+below the editor shows native-time model winds, gust maxima with source intervals,
+precipitation type and rate, cloud cover, temperature and dewpoint. The default
+legacy aloft table is currently available on the GFS path.
 
 The GFS path retains its legacy forecast heuristics. This hotfix corrects run
 coverage checks, bounds GRIB range reads and preserves missing visibility,

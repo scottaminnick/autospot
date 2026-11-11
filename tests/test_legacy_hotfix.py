@@ -63,7 +63,7 @@ class LegacyHotfixTests(unittest.TestCase):
         self.login()
         with patch.multiple(
             legacy,
-            retrieve_forecast=lambda _: {},
+            retrieve_forecast=lambda _: {"rows": []},
             chart=lambda _: "abc",
             build_spot_report=lambda _data, label: f"SAR: {label}",
         ):

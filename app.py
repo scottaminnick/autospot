@@ -21,7 +21,7 @@ from urllib3.util import Retry
 from concurrent.futures import ThreadPoolExecutor
 
 from request_validation import RequestValidationError, parse_forecast_request, validate_report
-from weather.draft import build_spot_report, chart
+from weather.draft import build_spot_report, chart, guidance_rows
 from weather.fields import DataFault
 from weather.pipeline import retrieve_forecast
 
@@ -31,6 +31,9 @@ REPORT_CSS = """
     body { font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px; }
     .container { background-color: #fff; padding: 30px; border-radius: 8px; max-width: 700px; margin: auto; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .report-wrap { background: #fff; border: 1px solid #ccc; padding: 25px; max-width: 950px; margin: 20px auto; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-x: auto; }
+    .model-guidance { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+    .model-guidance th, .model-guidance td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    .model-guidance thead { background: #eef3f7; }
     pre { font-family: 'Courier New', Courier, monospace !important; font-size: 13px; line-height: 1.5; white-space: pre !important; color: #111; margin: 0; }
     label { display: block; margin-top: 10px; font-weight: bold; }
     input[type='number'], input[type='text'], input[type='date'], select { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
@@ -664,7 +667,7 @@ def logout():
 def index():
     return render_template_string(HTML_FORM, css=REPORT_CSS)
 
-def render_report(report, meteogram, guidance_note=None):
+def render_report(report, meteogram, guidance_note=None, model_rows=()):
     return render_template_string(
         """<html><head>{{ css|safe }}</head><body>
         <div class="report-wrap">
@@ -675,9 +678,36 @@ def render_report(report, meteogram, guidance_note=None):
                 <textarea name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
                 <button type="submit" class="btn-transmit">Approve &amp; Save Report</button>
             </form>
+            {% if model_rows %}
+            {% macro value(number, format="%.1f") -%}
+              {{ format|format(number) if number is not none else "—" }}
+            {%- endmacro %}
+            <h3>ECMWF guidance by valid time</h3>
+            <p>Gusts are maxima over the indicated preceding interval. Precipitation is instantaneous. Cloud cover gives no cloud-base height.</p>
+            <table class="model-guidance">
+                <thead><tr>
+                    <th scope="col">Valid time (UTC)</th><th scope="col">10 m wind</th>
+                    <th scope="col">Gust (kt) / source interval (UTC)</th>
+                    <th scope="col">Precipitation type / mm/h</th>
+                    <th scope="col">Cloud cover %<br>Total / low / mid / high</th>
+                    <th scope="col">2 m temp / dewpoint °C</th>
+                </tr></thead>
+                <tbody>{% for row in model_rows %}<tr>
+                    <th scope="row">{{ row.valid_utc }}{% if row.support_only %} (support only){% endif %}</th>
+                    <td>{{ row.wind or "—" }}</td>
+                    <td>{{ value(row.gust) }}{% if row.gust is not none and row.gust_interval[0] and row.gust_interval[1] %}
+                        <br>{{ row.gust_interval[0] }} to {{ row.gust_interval[1] }}{% endif %}</td>
+                    <td>{{ row.phase or "Type unavailable" }} / {{ value(row.rate, "%.3g") }}
+                        {% if row.rain_candidate %}<br>Rain-rate candidate {{ row.rain_candidate }}{% endif %}</td>
+                    <td>{{ value(row.cloud) }}{% for fraction in row.layer_cloud %} / {{ value(fraction) }}{% endfor %}</td>
+                    <td>{{ value(row.temperature_c[0]) }} / {{ value(row.temperature_c[1]) }}</td>
+                </tr>{% endfor %}</tbody>
+            </table>
+            {% endif %}
             {% if meteogram %}<h3>Forecaster Meteogram</h3><img src="data:image/png;base64,{{ meteogram }}" style="width:100%;max-width:900px" alt="Model forecast time series">{% endif %}
         </div></body></html>""",
         css=REPORT_CSS, report=report, meteogram=meteogram, guidance_note=guidance_note,
+        model_rows=model_rows,
     )
 
 
@@ -698,7 +728,8 @@ def submit():
         return render_report(
             build_spot_report(guidance, forecast.label),
             chart(guidance),
-            "Review and complete the bracketed entries. ECMWF visibility and cloud-base heights are unavailable.",
+            "The editor contains a sustained-wind first guess. Review the gust and weather guidance below. Visibility and cloud-base heights are unavailable from this ECMWF feed.",
+            model_rows=guidance_rows(guidance),
         )
 
     return submit_gfs(forecast)
