@@ -101,6 +101,9 @@ class LegacyHotfixTests(unittest.TestCase):
         self.assertEqual(legacy.AviationTranslator.evaluate_clouds(75, 850), "BKN008")
         self.assertEqual(legacy.AviationTranslator.evaluate_clouds(40, 850), "[SKY REQUIRED]")
         self.assertEqual(legacy.AviationTranslator.evaluate_clouds(75, None), "[SKY REQUIRED]")
+        self.assertEqual(legacy.AviationTranslator.evaluate_clouds(0.7, None), "SKC")
+        self.assertEqual(legacy.AviationTranslator.evaluate_clouds(0, None), "SKC")
+        self.assertEqual(legacy.AviationTranslator.evaluate_clouds(6.25, None), "[SKY REQUIRED]")
         self.assertAlmostEqual(legacy.ceiling_agl_ft(650, 300), 1148.294)
         self.assertIsNone(legacy.ceiling_agl_ft(650, None))
         self.assertIsNone(legacy.ceiling_agl_ft(250, 300))
@@ -112,7 +115,13 @@ class LegacyHotfixTests(unittest.TestCase):
                 "visibility": 3.2,
                 "ceiling": 1148,
                 "clouds": (75, None, 0, 20),
+            }, {
+                "valid_utc": "2026-11-11 15:00Z",
+                "visibility": 10,
+                "ceiling": None,
+                "clouds": (0.7, 0, 0, 0.7),
             }])
         self.assertIn("GFS guidance by valid time", result)
         self.assertIn("1148", result)
         self.assertIn("75 / — / 0 / 20", result)
+        self.assertIn("No ceiling (SKC)", result)
