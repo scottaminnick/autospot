@@ -1,10 +1,10 @@
-from flask import Flask, request, render_template_string, session, redirect, url_for
+from flask import Flask, abort, request, render_template_string, session, redirect, url_for, send_file
 import datetime
-import json
 import numpy as np
 import os
-import warnings
+import re
 import hmac
+import secrets
 from functools import wraps
 import xarray as xr
 import requests
@@ -19,6 +19,11 @@ import matplotlib.patches as mpatches
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from concurrent.futures import ThreadPoolExecutor
+
+from request_validation import RequestValidationError, parse_forecast_request, validate_report
+from weather.draft import build_spot_report, chart
+from weather.fields import DataFault
+from weather.pipeline import retrieve_forecast
 
 # --- UI AND CSS LAYER ---
 REPORT_CSS = """
@@ -45,6 +50,7 @@ HTML_FORM = """
 <div class='container'>
     <h2>NWSI 10-813 Spot Forecast Generator</h2>
     <form action='/submit' method='post'>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Model Routing:</label>
         <select name='model_choice'>
             <option value='GFS'>GFS (Global 25km)</option>
@@ -149,8 +155,10 @@ class AviationTranslator:
 
     @staticmethod
     def extract_visibility(vis_meters):
+        if vis_meters is None: return "[VISIBILITY REQUIRED]"
         vis_sm = float(vis_meters) / 1609.34
-        if vis_sm >= 6: return "P6SM"
+        if vis_sm > 6: return "P6SM"
+        elif vis_sm == 6: return "6SM"
         elif vis_sm >= 5: return "5SM"
         elif vis_sm >= 4: return "4SM"
         elif vis_sm >= 3: return "3SM"
@@ -162,11 +170,12 @@ class AviationTranslator:
 
     @staticmethod
     def extract_present_weather(prate, is_convective, vis_string):
+        if prate is None: return "[WEATHER REVIEW REQUIRED]"
         wx_string = ""
         intensity = "-" if 0 < prate < 0.0005 else ("+" if prate > 0.002 else "")
         if prate > 0: wx_string = f"{intensity}TSRA" if is_convective else f"{intensity}RA"
-        if wx_string == "" and vis_string != "P6SM":
-            wx_string = "FG" if vis_string in ["1/4SM", "1/2SM", "M1/4SM"] else "BR"
+        if not wx_string and vis_string != "P6SM":
+            return "[WEATHER REVIEW REQUIRED]"
         return wx_string if wx_string else "NSW"
 
     @staticmethod
@@ -252,7 +261,7 @@ class FirstGuessTAF:
         if base_wx != curr_wx: return True
 
         for t in [3000, 2000, 1500, 1000, 500, 200]:
-            if (base['cbh'] >= t and current['cbh'] < t) or (base['cbh'] < t and current['cbh'] >= t):
+            if base["cbh"] is not None and current["cbh"] is not None and (base["cbh"] >= t) != (current["cbh"] >= t):
                 return True
         return False
 
@@ -260,7 +269,7 @@ class FirstGuessTAF:
         wind = AviationTranslator.format_wind(data['wdir'], data['wspd'], data['gust'])
         vis = AviationTranslator.extract_visibility(data['vis'])
         wx = AviationTranslator.extract_present_weather(data['prate'], data['is_conv'], vis)
-        clouds = AviationTranslator.evaluate_clouds(data['tcc'], data['cbh'], data['is_conv'], data['prate'], data.get('lcc', 0), data.get('mcc', 0), data.get('hcc', 0))
+        clouds = '[SKY REQUIRED]' if data['cbh'] is None or data['prate'] is None else AviationTranslator.evaluate_clouds(data['tcc'], data['cbh'], data['is_conv'], data['prate'], data.get('lcc', 0), data.get('mcc', 0), data.get('hcc', 0))
         wx_str = f" {wx}" if wx != "NSW" else ""
         return f"{wind} {vis}{wx_str} {clouds}".strip()
 
@@ -270,7 +279,7 @@ class FirstGuessTAF:
 
         lat_dir = "N" if self.lat >= 0 else "S"
         lon_dir = "E" if self.lon >= 0 else "W"
-        elev_str = f"{int(self.true_elev_ft)}FT MSL"
+        elev_str = f"{int(self.true_elev_ft)}FT MSL" if self.true_elev_ft is not None else "UNKNOWN"
         self.taf_groups.append(f"SAR: {self.sar_name}  LOC: {abs(self.lat):.2f}{lat_dir}/{abs(self.lon):.2f}{lon_dir}  ELEV: {elev_str}")
 
         base_data = self.sfc_data[0]
@@ -314,7 +323,7 @@ class FirstGuessTAF:
             grid_row = f"{valid_ts:<6}"
 
             for ft in levels:
-                if ft - self.true_elev_ft <= 1500:
+                if self.true_elev_ft is None or ft - self.true_elev_ft <= 1500:
                     grid_row += f"{'':<8}"
                     continue
                 d = self.grid_data[h].get(ft)
@@ -352,14 +361,16 @@ def generate_meteogram(processed_taf, valid_start_time):
         is_conv = d['is_conv']
         prate = d['prate']
 
+        if c_val is None:
+            cbh_plot.append(np.nan)
+            continue
         if c_val > 30000 or c_val < 100 or np.isnan(c_val): c_val = 2500
-        if t_val < 10 and not is_conv and prate <= 0: cbh_plot.append(12000)
+        if t_val < 10 and not is_conv and prate is not None and prate <= 0: cbh_plot.append(12000)
         else:
             if c_val >= 12000: cbh_plot.append(12000)
             else: cbh_plot.append(c_val)
 
-    vis = [float(d['vis']) / 1609.34 for d in processed_taf]
-    vis = [v if v < 10 else 10 for v in vis]
+    vis = [min(float(d['vis']) / 1609.34, 10) if d['vis'] is not None else np.nan for d in processed_taf]
 
     vis_colors = []
     for v in vis:
@@ -372,7 +383,7 @@ def generate_meteogram(processed_taf, valid_start_time):
     gust = [d['gust'] if d['gust'] > d['wspd'] else np.nan for d in processed_taf]
 
     # NEW: Precipitation Array (converted from kg/m^2/s to inches/hour)
-    prates_in_hr = [d['prate'] * 3600 / 25.4 for d in processed_taf]
+    prates_in_hr = [d['prate'] * 3600 / 25.4 if d['prate'] is not None else np.nan for d in processed_taf]
     is_conv_list = [d['is_conv'] for d in processed_taf]
     precip_colors = ['red' if c else '#1f77b4' for c in is_conv_list]
 
@@ -419,7 +430,7 @@ def generate_meteogram(processed_taf, valid_start_time):
     ax4.set_title('Precipitation Rate')
 
     # Dynamic scaling for precipitation
-    max_p = max(prates_in_hr) if prates_in_hr else 0
+    max_p = max((p for p in prates_in_hr if np.isfinite(p)), default=0)
     ax4.set_ylim(bottom=0, top=(max_p * 1.2) if max_p > 0 else 0.1)
     ax4.grid(True, linestyle=':', alpha=0.6)
 
@@ -434,86 +445,34 @@ def generate_meteogram(processed_taf, valid_start_time):
     fig.savefig(img, format='png', bbox_inches='tight', dpi=100)
     img.seek(0)
     encoded = base64.b64encode(img.getvalue()).decode()
-    return f"<h3>Forecaster Meteogram</h3><img src='data:image/png;base64,{encoded}' style='width:100%; max-width:900px; border:1px solid #ccc; box-shadow: 0 2px 4px rgba(0,0,0,0.1);'/>"
+    return encoded
 
-# --- CORE DATA FETCHER ---
-# Model routing. Both supported models are global and expose a single GRIB2
-# file per forecast step (surface + pressure levels together) on public AWS
-# buckets, fetched via HTTP byte-range requests. They differ in URL layout,
-# index format, longitude convention, and step granularity - captured here.
-MODEL_CYCLES = {
-    'GFS': ['18', '12', '06', '00'],
-    'ECMWF': ['18', '12', '06', '00'],
+# --- LEGACY GFS DATA FETCHER ---
+GFS_FIELDS = {
+    'u': ":UGRD:10 m above ground:",
+    'v': ":VGRD:10 m above ground:",
+    'gust': ":GUST:surface:",
+    'vis': ":VIS:surface:",
+    'prate': ":PRATE:surface:",
+    'cprat': ":ACPCP:surface:",
+    'tcc': ":TCDC:entire atmosphere:",
+    'cbh': ":HGT:cloud base:",
+    'hgt_sfc': ":HGT:surface:",
+    'lcc': [":LCDC:low cloud layer:", ":TCDC:low cloud layer:"],
+    'mcc': [":MCDC:middle cloud layer:", ":TCDC:middle cloud layer:"],
+    'hcc': [":HCDC:high cloud layer:", ":TCDC:high cloud layer:"],
 }
-# Forecast step granularity (hours). GFS publishes hourly steps; ECMWF
-# open-data oper is 3-hourly, so every requested step must be a multiple of 3.
-MODEL_STEP_HOURS = {'GFS': 1, 'ECMWF': 3}
+GFS_LEVELS = {3000:900, 6000:800, 9000:700, 12000:600, 18000:500, 24000:400, 30000:300, 34000:250, 39000:200}
+GFS_PROFILE_FIELDS = {"t": "TMP", "u": "UGRD", "v": "VGRD"}
 
-# Per-model surface field specifications. GFS specs are wgrib2 '.idx'
-# substrings; ECMWF specs are dicts matched against the JSON index. A None spec
-# marks a field the model does not publish - handled with a default downstream.
-# ECMWF open data lacks visibility, cloud-base height, and layered (low/mid/
-# high) cloud cover, and has no convective-precip field (CAPE stands in).
-SFC_FIELDS = {
-    'u':       {'GFS': ":UGRD:10 m above ground:",  'ECMWF': {'param': '10u',    'levtype': 'sfc'}},
-    'v':       {'GFS': ":VGRD:10 m above ground:",  'ECMWF': {'param': '10v',    'levtype': 'sfc'}},
-    'gust':    {'GFS': ":GUST:surface:",            'ECMWF': {'param': '10fg',   'levtype': 'sfc'}},
-    'vis':     {'GFS': ":VIS:surface:",             'ECMWF': None},
-    'prate':   {'GFS': ":PRATE:surface:",           'ECMWF': {'param': 'tprate', 'levtype': 'sfc'}},
-    'cprat':   {'GFS': ":ACPCP:surface:",           'ECMWF': {'param': 'mucape', 'levtype': 'sfc'}},
-    'tcc':     {'GFS': ":TCDC:entire atmosphere:",  'ECMWF': {'param': 'tcc',    'levtype': 'sfc'}},
-    'cbh':     {'GFS': ":HGT:cloud base:",          'ECMWF': None},
-    'hgt_sfc': {'GFS': ":HGT:surface:",             'ECMWF': None},
-    'lcc':     {'GFS': [":LCDC:low cloud layer:", ":TCDC:low cloud layer:"],       'ECMWF': None},
-    'mcc':     {'GFS': [":MCDC:middle cloud layer:", ":TCDC:middle cloud layer:"], 'ECMWF': None},
-    'hcc':     {'GFS': [":HCDC:high cloud layer:", ":TCDC:high cloud layer:"],     'ECMWF': None},
-}
 
-# Winds-aloft pressure levels (ft -> mb). ECMWF open data has no 900/800 mb
-# levels, so the two lowest use the nearest available (925/850 mb).
-GRID_LVLS = {
-    'GFS':   {3000:900, 6000:800, 9000:700, 12000:600, 18000:500, 24000:400, 30000:300, 34000:250, 39000:200},
-    'ECMWF': {3000:925, 6000:850, 9000:700, 12000:600, 18000:500, 24000:400, 30000:300, 34000:250, 39000:200},
-}
-
-def aloft_spec(model, field, mb):
-    """Field spec for a winds-aloft variable ('t'/'u'/'v') at a pressure level."""
-    if model == 'ECMWF':
-        return {'param': field, 'levtype': 'pl', 'levelist': str(mb)}
-    return {'t': f":TMP:{mb} mb:", 'u': f":UGRD:{mb} mb:", 'v': f":VGRD:{mb} mb:"}[field]
-
-def build_grib_urls(model, date_str, cycle, fhour):
-    """Return (grib_url, index_url) for a model/cycle/forecast-hour."""
-    if model == 'ECMWF':
-        stem = (f"https://ecmwf-forecasts.s3.amazonaws.com/{date_str}/{cycle}z/ifs/"
-                f"0p25/oper/{date_str}{cycle}0000-{int(fhour)}h-oper-fc")
-        return f"{stem}.grib2", f"{stem}.index"
+def build_gfs_urls(date_str, cycle, fhour):
     base = (f"https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.{date_str}/{cycle}/"
             f"atmos/gfs.t{cycle}z.pgrb2.0p25.f{int(fhour):03d}")
     return base, f"{base}.idx"
 
-def parse_index(model, text):
-    """Normalise an index file's text into a list of records for byte lookup.
-    GFS -> list of raw wgrib2 '.idx' lines. ECMWF -> list of JSON dicts."""
-    if model == 'ECMWF':
-        recs = []
-        for line in text.splitlines():
-            line = line.strip()
-            if line:
-                try: recs.append(json.loads(line))
-                except Exception: pass
-        return recs
-    return text.splitlines()
 
-def locate_bytes(model, records, field_spec):
-    """Find the (start_byte, end_byte) of a field within an index.
-    GFS field_spec is a list of substrings; ECMWF is a dict of index keys."""
-    if model == 'ECMWF':
-        for rec in records:
-            if all(str(rec.get(k)) == str(v) for k, v in field_spec.items()):
-                start = int(rec['_offset'])
-                return start, start + int(rec['_length']) - 1
-        return None, ''
+def locate_bytes(records, field_spec):
     search_strings = [field_spec] if isinstance(field_spec, str) else field_spec
     for i, line in enumerate(records):
         if any(s in line for s in search_strings):
@@ -525,96 +484,128 @@ def locate_bytes(model, records, field_spec):
             return start_byte, ''
     return None, ''
 
-def get_latest_complete_run(model, max_fhour, session):
+def get_latest_gfs_run(start, end, session):
     now = datetime.datetime.now(datetime.timezone.utc)
-    cycles = MODEL_CYCLES[model]
-
-    for day_offset in range(3):
-        date_str = (now - datetime.timedelta(days=day_offset)).strftime('%Y%m%d')
-        for cycle in cycles:
-            if day_offset == 0 and int(cycle) > now.hour: continue
-            _, idx_url = build_grib_urls(model, date_str, cycle, max_fhour)
-            try:
-                if session.head(idx_url, timeout=5).status_code == 200:
-                    return date_str, cycle
-            except: continue
+    latest = now.replace(hour=now.hour // 6 * 6, minute=0, second=0, microsecond=0)
+    for i in range(8):
+        run = latest - datetime.timedelta(hours=6 * i)
+        if run > start:
+            continue
+        first = int((start - run).total_seconds() / 3600)
+        last = int((end - run).total_seconds() / 3600)
+        try:
+            if all(
+                session.head(build_gfs_urls(run.strftime('%Y%m%d'), run.strftime('%H'), hour)[1], timeout=5).status_code == 200
+                for hour in (first, last)
+            ):
+                return run, first
+        except requests.RequestException:
+            continue
     return None, None
 
-def get_model_variable(target_lat, target_lon, date_str, cycle, fhour, field_spec, model, session, idx_cache):
-    warnings.filterwarnings("ignore")
 
-    base_url, idx_url = build_grib_urls(model, date_str, cycle, fhour)
+def get_gfs_variable(target_lat, target_lon, date_str, cycle, fhour, field_spec, session, idx_cache):
+    base_url, idx_url = build_gfs_urls(date_str, cycle, fhour)
     records = idx_cache.get(idx_url, [])
-    if not records: return None
+    if not records:
+        return None
 
-    start_byte, end_byte = locate_bytes(model, records, field_spec)
+    start_byte, end_byte = locate_bytes(records, field_spec)
+    if start_byte is None:
+        return None
 
-    if start_byte is not None:
-        grib = None
-        for attempt in range(3):
-            try:
-                r = session.get(base_url, headers={"Range": f"bytes={start_byte}-{end_byte}"}, timeout=15)
-                if r.status_code == 206:
-                    if end_byte != '':
-                        expected_len = int(end_byte) - start_byte + 1
-                        if len(r.content) < expected_len:
-                            time.sleep(1)
-                            continue
-                    grib = r
-                    break
-            except: pass
-            time.sleep(1)
-
-        if not grib: return None
-        tmp = f"/tmp/atomic_{uuid.uuid4().hex}.grib2"
-        os.makedirs("/tmp", exist_ok=True)
-        try:
-            with open(tmp, "wb") as f:
-                f.write(grib.content)
-                f.flush()
-                os.fsync(f.fileno())
-            try:
-                ds = xr.open_dataset(tmp, engine="cfgrib", backend_kwargs={'indexpath': ''})
-                lat_key = next((k for k in ['latitude', 'lat'] if k in ds.coords), None)
-                lon_key = next((k for k in ['longitude', 'lon'] if k in ds.coords), None)
-
-                if lat_key and lon_key and len(ds.data_vars) > 0:
-                    if ds[lat_key].ndim == 2:
-                        lat_arr = ds[lat_key].values
-                        lon_arr = ds[lon_key].values
-                        lon_arr_180 = (lon_arr + 180) % 360 - 180
-                        target_lon_180 = (target_lon + 180) % 360 - 180
-                        dlon = np.abs(lon_arr_180 - target_lon_180)
-                        dlon = np.minimum(dlon, 360.0 - dlon)
-                        dlat = lat_arr - target_lat
-                        dist_sq = dlat**2 + dlon**2
-                        y_idx, x_idx = np.unravel_index(np.argmin(dist_sq), dist_sq.shape)
-                        y_dim, x_dim = ds[lat_key].dims
-                        point = ds.isel({y_dim: y_idx, x_dim: x_idx}).load()
-                    else:
-                        # Normalise the target longitude to the dataset's own
-                        # convention: GFS uses 0..360, ECMWF uses -180..180.
-                        lon_vals = ds[lon_key].values
-                        if float(np.nanmax(lon_vals)) > 180.0:
-                            tgt_lon = target_lon % 360
-                        else:
-                            tgt_lon = (target_lon + 180) % 360 - 180
-                        point = ds.sel({lat_key: target_lat, lon_key: tgt_lon}, method="nearest").load()
-                    ds.close()
-                    return {'data': point, 'cycle': f"{date_str} {cycle}Z", 'model': model}
-                ds.close()
-            except Exception as e:
-                print(f"Data Corrupted: Skipping -> {str(e)}")
+    try:
+        with session.get(
+            base_url,
+            headers={"Range": f"bytes={start_byte}-{end_byte}", "Accept-Encoding": "identity"},
+            stream=True,
+            timeout=(4, 8),
+        ) as response:
+            match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", response.headers.get("Content-Range", ""))
+            if response.status_code != 206 or not match:
                 return None
-        finally:
-            time.sleep(0.05)
-            if os.path.exists(tmp):
-                try: os.remove(tmp)
-                except: pass
-    return None
+            first, last, size = map(int, match.groups())
+            length = last - first + 1
+            if (
+                first != start_byte
+                or last != (end_byte if end_byte != "" else size - 1)
+                or last >= size
+                or not 20 <= length <= 8 * 1024 * 1024
+            ):
+                return None
+            message = bytearray()
+            for chunk in response.iter_content(chunk_size=65536):
+                if len(message) + len(chunk) > length:
+                    return None
+                message.extend(chunk)
+            if (
+                len(message) != length
+                or not message.startswith(b"GRIB")
+                or not message.endswith(b"7777")
+                or message[7] != 2
+                or int.from_bytes(message[8:16], "big") != length
+            ):
+                return None
+    except requests.RequestException:
+        return None
+
+    tmp = f"/tmp/atomic_{uuid.uuid4().hex}.grib2"
+    try:
+        with open(tmp, "wb") as stream:
+            stream.write(message)
+        with xr.open_dataset(tmp, engine="cfgrib", backend_kwargs={"indexpath": ""}) as ds:
+            if len(ds.data_vars) != 1 or "latitude" not in ds.coords or "longitude" not in ds.coords:
+                return None
+            if ds.latitude.ndim != 1 or ds.longitude.ndim != 1:
+                return None
+            longitude = np.asarray(ds.longitude)
+            distances = np.abs((longitude - target_lon + 180) % 360 - 180)
+            lon_index = int(np.argmin(distances))
+            lat_index = int(np.argmin(np.abs(np.asarray(ds.latitude) - target_lat)))
+            point = next(iter(ds.data_vars.values())).isel(latitude=lat_index, longitude=lon_index)
+            value = float(point.item())
+            return value if np.isfinite(value) else None
+    except Exception as error:
+        app.logger.warning("GFS point decode failed at step %s (%s)", fhour, type(error).__name__)
+        return None
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
 
 # --- FLASK APP ---
 app = Flask(__name__)
+app.config.update(
+    MAX_CONTENT_LENGTH=128_000,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_ENVIRONMENT_ID")),
+)
+
+
+@app.context_processor
+def csrf_context():
+    def csrf_token():
+        if "csrf_token" not in session:
+            session["csrf_token"] = secrets.token_urlsafe(32)
+        return session["csrf_token"]
+    return {"csrf_token": csrf_token}
+
+
+@app.before_request
+def check_csrf():
+    if request.method == "POST":
+        expected = session.get("csrf_token", "")
+        supplied = request.form.getlist("csrf_token")
+        if not expected or len(supplied) != 1 or not hmac.compare_digest(expected.encode(), supplied[0].encode()):
+            abort(400, "Form expired. Reload the page and try again.")
+
+
+@app.get("/healthz")
+def health():
+    if not app.secret_key or not APP_PASSWORD:
+        return {"status": "unavailable"}, 503
+    return {"status": "ok"}
+
 
 # SECRET_KEY signs the session cookie. Must be set (and IDENTICAL across all
 # gunicorn workers/restarts) or users will get randomly logged out every time
@@ -630,6 +621,7 @@ LOGIN_FORM = """
     <h2>NWSI 10-813 Spot Forecast Generator</h2>
     {% if error %}<p style='color:#dc3545; font-weight:bold;'>{{ error }}</p>{% endif %}
     <form action='/login' method='post'>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>Password:</label>
         <input type='password' name='password' required autofocus>
         <button type='submit'>Sign In</button>
@@ -655,7 +647,8 @@ def login():
         entered = request.form.get('password', '')
         # hmac.compare_digest avoids timing attacks that could leak the
         # password one character at a time via response-time differences.
-        if hmac.compare_digest(entered, APP_PASSWORD):
+        if hmac.compare_digest(entered.encode(), APP_PASSWORD.encode()):
+            session.clear()
             session['authenticated'] = True
             return redirect(url_for('index'))
         error = "Incorrect password."
@@ -671,78 +664,87 @@ def logout():
 def index():
     return render_template_string(HTML_FORM, css=REPORT_CSS)
 
+def render_report(report, meteogram, guidance_note=None):
+    return render_template_string(
+        """<html><head>{{ css|safe }}</head><body>
+        <div class="report-wrap">
+            <h3>Forecaster Review &amp; Edit</h3>
+            {% if guidance_note %}<p>{{ guidance_note }}</p>{% endif %}
+            <form action="{{ url_for('transmit') }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <textarea name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
+                <button type="submit" class="btn-transmit">Approve &amp; Save Report</button>
+            </form>
+            {% if meteogram %}<h3>Forecaster Meteogram</h3><img src="data:image/png;base64,{{ meteogram }}" style="width:100%;max-width:900px" alt="Model forecast time series">{% endif %}
+        </div></body></html>""",
+        css=REPORT_CSS, report=report, meteogram=meteogram, guidance_note=guidance_note,
+    )
+
+
 @app.route('/submit', methods=['POST'])
 @login_required
 def submit():
     try:
-        lat = float(request.form.get('latitude', 39.1))
-        lon = float(request.form.get('longitude', -94.6))
-        sar_name = request.form.get('sar_name', 'AUTO-SPOT')
-        selected_model = request.form.get('model_choice', 'GFS')
-        duration = int(request.form.get('duration', 24))
+        forecast = parse_forecast_request(request.form)
+    except RequestValidationError as error:
+        abort(400, str(error))
 
-        user_date_str = request.form.get('start_date')
-        user_hour_str = request.form.get('start_hour')
+    if forecast.model == "ECMWF":
         try:
-            if user_date_str and user_hour_str:
-                iso_string = f"{user_date_str}T{user_hour_str}:00:00+00:00"
-                taf_start_time = datetime.datetime.fromisoformat(iso_string)
-            else:
-                taf_start_time = datetime.datetime.now(datetime.timezone.utc).replace(minute=0, second=0, microsecond=0)
-        except:
-            taf_start_time = datetime.datetime.now(datetime.timezone.utc).replace(minute=0, second=0, microsecond=0)
+            guidance = retrieve_forecast(forecast)
+        except DataFault as error:
+            app.logger.warning("ECMWF retrieval failed: %s (%s)", error.code, error.state)
+            abort(502, "Verified ECMWF guidance was unavailable for this request. Try again or explicitly select GFS.")
+        return render_report(
+            build_spot_report(guidance, forecast.label),
+            chart(guidance),
+            "Review and complete the bracketed entries. ECMWF visibility and cloud-base heights are unavailable.",
+        )
 
-        active_model = selected_model if selected_model in ('GFS', 'ECMWF') else 'GFS'
-        step_gran = MODEL_STEP_HOURS[active_model]
-        # GFS grid is 0..360; ECMWF is -180..180 (native signed longitude).
-        target_lon = (360 + lon if lon < 0 else lon) if active_model == 'GFS' else lon
-        grid_lvls = GRID_LVLS[active_model]
+    return submit_gfs(forecast)
 
+
+def submit_gfs(forecast):
+    lat, lon, sar_name = forecast.latitude, forecast.longitude, forecast.label
+    duration, taf_start_time = forecast.duration, forecast.start
+    taf_end_time = taf_start_time + datetime.timedelta(hours=duration)
+    target_lon = lon % 360
+
+    try:
         results = {}
         with requests.Session() as session:
-            retry = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
-            session.mount("https://", HTTPAdapter(pool_connections=40, pool_maxsize=40, max_retries=retry))
-
-            # Sentry step confirms a run is published far enough out to cover the
-            # whole request; nudge past the last needed step by one granule.
-            sentry_hour = duration + step_gran
-            run_date, run_cycle = get_latest_complete_run(active_model, sentry_hour, session)
-            if not run_date: return f"<html><body><h3>Error: Upstream synchronization in progress. Please try again.</h3></body></html>", 500
-
-            model_init_time = datetime.datetime.strptime(f"{run_date}{run_cycle}", "%Y%m%d%H").replace(tzinfo=datetime.timezone.utc)
-
-            # Snap the start offset to the model's step granularity so every
-            # requested forecast step actually exists (ECMWF is 3-hourly).
-            raw_offset = max(0, (taf_start_time - model_init_time).total_seconds() / 3600)
-            hour_offset = int(round(raw_offset / step_gran) * step_gran)
-            taf_hours = [hour_offset + i for i in range(0, duration + 1, 3)]
-            fd_hours = [hour_offset + i for i in range(0, duration + 1, 6)]
+            retry = Retry(total=2, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+            session.mount("https://", HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=retry))
+            run, hour_offset = get_latest_gfs_run(taf_start_time, taf_end_time, session)
+            if run is None:
+                abort(502, "GFS guidance was unavailable for the requested UTC period.")
+            run_date, run_cycle = run.strftime('%Y%m%d'), run.strftime('%H')
+            taf_hours = list(range(hour_offset, hour_offset + duration, 3))
+            fd_hours = list(range(hour_offset, hour_offset + duration, 6))
 
             tasks = []
             for h in taf_hours:
-                for key, spec_map in SFC_FIELDS.items():
-                    spec = spec_map[active_model]
-                    if spec is None: continue
+                for key, spec in GFS_FIELDS.items():
                     tasks.append((lat, target_lon, run_date, run_cycle, h, spec, f"{key}_{h}"))
 
             for h in fd_hours:
-                for ft, mb in grid_lvls.items():
+                for ft, mb in GFS_LEVELS.items():
                     for field in ('t', 'u', 'v'):
-                        tasks.append((lat, target_lon, run_date, run_cycle, h, aloft_spec(active_model, field, mb), f"{field}_{h}_{ft}"))
+                        tasks.append((lat, target_lon, run_date, run_cycle, h, f":{GFS_PROFILE_FIELDS[field]}:{mb} mb:", f"{field}_{h}_{ft}"))
 
             idx_cache = {}
             def prefetch(url):
                 try:
                     for _ in range(2):
                         r = session.get(url, timeout=10)
-                        if r.status_code == 200: return url, parse_index(active_model, r.text)
+                        if r.status_code == 200: return url, r.text.splitlines()
                         time.sleep(0.5)
                 except: pass
                 return url, []
 
             urls_to_fetch = set()
             for task in tasks:
-                _, idx_url = build_grib_urls(active_model, task[2], task[3], task[4])
+                _, idx_url = build_gfs_urls(task[2], task[3], task[4])
                 urls_to_fetch.add(idx_url)
 
             with ThreadPoolExecutor(max_workers=10) as ex:
@@ -750,61 +752,47 @@ def submit():
 
             def worker(args):
                 lat_, lon_, date_, cyc_, fh_, spec_, key_ = args
-                return key_, get_model_variable(lat_, lon_, date_, cyc_, fh_, spec_, active_model, session, idx_cache)
+                return key_, get_gfs_variable(lat_, lon_, date_, cyc_, fh_, spec_, session, idx_cache)
 
-            with ThreadPoolExecutor(max_workers=35) as executor:
+            with ThreadPoolExecutor(max_workers=8) as executor:
                 for k, r in executor.map(worker, tasks):
-                    if r: results[k] = r
+                    if r is not None: results[k] = r
 
         true_elev_user = get_usgs_elevation(lat, lon)
-        final_true_elev = 0
+        final_true_elev = None
 
-        # ECMWF reports total cloud cover as a 0-1 fraction; GFS as a percent.
-        tcc_scale = 100.0 if active_model == 'ECMWF' else 1.0
         processed_taf = []
         for h in taf_hours:
             u_r, v_r, tcc_r, vis_r = results.get(f"u_{h}"), results.get(f"v_{h}"), results.get(f"tcc_{h}"), results.get(f"vis_{h}")
-            if all([u_r, v_r, tcc_r]):
-                u = list(u_r['data'].data_vars.values())[0].item()
-                v = list(v_r['data'].data_vars.values())[0].item()
-                tcc = list(tcc_r['data'].data_vars.values())[0].item() * tcc_scale
-                # Visibility is absent from ECMWF open data; default to
-                # unrestricted (>6SM) when the field is unavailable.
-                vis = list(vis_r['data'].data_vars.values())[0].item() if vis_r else 9999.0
+            if all(value is not None for value in (u_r, v_r, tcc_r)):
+                u = u_r
+                v = v_r
+                tcc = tcc_r
+                vis = vis_r
                 spd = int(np.hypot(u, v) * 1.94384)
                 dr = int((np.degrees(np.arctan2(u, v)) + 180 + 360) % 360)
                 gust_r = results.get(f"gust_{h}")
-                gust = (list(gust_r['data'].data_vars.values())[0].item() * 1.94384) if gust_r else 0
+                gust = (gust_r * 1.94384) if gust_r is not None else 0
                 prate_r, cprat_r = results.get(f"prate_{h}"), results.get(f"cprat_{h}")
-                prate = list(prate_r['data'].data_vars.values())[0].item() if prate_r else 0
-                # Convection flag: GFS keys off convective precip accumulation;
-                # ECMWF has no such field, so most-unstable CAPE stands in.
-                conv_val = list(cprat_r['data'].data_vars.values())[0].item() if cprat_r else 0
-                if active_model == 'ECMWF':
-                    is_conv = conv_val >= 300 and prate > 0
-                else:
-                    is_conv = conv_val > 0
+                prate = prate_r
+                conv_val = cprat_r if cprat_r is not None else 0
+                is_conv = conv_val > 0
 
                 hgt_sfc_r = results.get(f"hgt_sfc_{h}")
-                model_elev_ft = (list(hgt_sfc_r['data'].data_vars.values())[0].item() * 3.28084) if hgt_sfc_r else 0
+                model_elev_ft = (hgt_sfc_r * 3.28084) if hgt_sfc_r is not None else None
                 active_true_elev = true_elev_user if true_elev_user is not None else model_elev_ft
-                final_true_elev = max(final_true_elev, active_true_elev)
+                if active_true_elev is not None and final_true_elev is None:
+                    final_true_elev = active_true_elev
 
-                delta_ft = active_true_elev - model_elev_ft
+                delta_ft = active_true_elev - model_elev_ft if model_elev_ft is not None else 0
                 cbh_r = results.get(f"cbh_{h}")
-                cbh = (list(cbh_r['data'].data_vars.values())[0].item() * 3.28084) if cbh_r else 99999
-                adj_cbh = cbh - delta_ft
-
-                if adj_cbh < 100 and tcc >= 50:
-                    adj_cbh = 100
-                    vis = min(vis, 400)
-                elif adj_cbh < 100:
-                    adj_cbh = 100
+                cbh = (cbh_r * 3.28084) if cbh_r is not None else None
+                adj_cbh = max(100, cbh - delta_ft) if cbh is not None else None
 
                 lcc_r, mcc_r, hcc_r = results.get(f"lcc_{h}"), results.get(f"mcc_{h}"), results.get(f"hcc_{h}")
-                lcc = list(lcc_r['data'].data_vars.values())[0].item() if lcc_r else 0
-                mcc = list(mcc_r['data'].data_vars.values())[0].item() if mcc_r else 0
-                hcc = list(hcc_r['data'].data_vars.values())[0].item() if hcc_r else 0
+                lcc = lcc_r if lcc_r is not None else 0
+                mcc = mcc_r if mcc_r is not None else 0
+                hcc = hcc_r if hcc_r is not None else 0
 
                 processed_taf.append({
                     'fhour': h, 'wdir': dr, 'wspd': spd, 'gust': gust,
@@ -814,70 +802,40 @@ def submit():
 
         grid_res = {h: {} for h in fd_hours}
         for h in fd_hours:
-            for ft in grid_lvls:
+            for ft in GFS_LEVELS:
                 tr, ur, vr = results.get(f"t_{h}_{ft}"), results.get(f"u_{h}_{ft}"), results.get(f"v_{h}_{ft}")
-                if tr and ur and vr:
-                    t = list(tr['data'].data_vars.values())[0].item() - 273.15
-                    u = list(ur['data'].data_vars.values())[0].item()
-                    v = list(vr['data'].data_vars.values())[0].item()
+                if all(value is not None for value in (tr, ur, vr)):
+                    t = tr - 273.15
+                    u = ur
+                    v = vr
                     grid_res[h][ft] = {'temp': t, 'wspd': np.hypot(u,v)*1.94, 'wdir': (np.degrees(np.arctan2(u,v))+180)%360}
 
-        cycle_label = f"{active_model} {run_date} {run_cycle}Z"
+        if not processed_taf or processed_taf[0]['fhour'] != hour_offset:
+            abort(502, "GFS surface guidance was unavailable at the requested start.")
+        cycle_label = f"GFS {run_date} {run_cycle}Z"
+        engine = FirstGuessTAF(sar_name, lat, lon, processed_taf, grid_res, cycle_label, duration, final_true_elev)
+        return render_report(
+            engine.generate_report(taf_start_time),
+            generate_meteogram(processed_taf, taf_start_time),
+        )
+    except (requests.RequestException, ValueError, OSError) as error:
+        app.logger.warning("GFS request failed (%s)", type(error).__name__)
+        abort(502, "GFS guidance could not be processed for this request.")
 
-        taf_engine = FirstGuessTAF(sar_name, lat, lon, processed_taf, grid_res, cycle_label, duration, final_true_elev)
-        final_report = taf_engine.generate_report(taf_start_time)
-        meteogram_html = generate_meteogram(processed_taf, taf_start_time)
-
-        return f"""
-        <html><head>{REPORT_CSS}</head><body>
-            <div class='report-wrap'>
-                <h3>Forecaster Review & Edit</h3>
-                <form action='/transmit' method='post'>
-                    <textarea name='taf_content' class='taf-editor' rows='15'>{final_report}</textarea>
-                    <button type='submit' class='btn-transmit'>Approve & Save Report</button>
-                </form>
-                {meteogram_html}
-            </div>
-        </body></html>
-        """
-    except Exception as e: return f"Server Error: {str(e)}", 500
 
 @app.route('/transmit', methods=['POST'])
 @login_required
 def transmit():
-    final_taf = request.form.get('taf_content', '')
+    try:
+        text = validate_report(request.form)
+    except RequestValidationError as error:
+        abort(400, str(error))
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%SZ')
+    return send_file(
+        io.BytesIO(text.encode("utf-8")), mimetype="text/plain", as_attachment=True,
+        download_name=f"SPOT_TAF_{stamp}.txt", max_age=0,
+    )
 
-    escaped_taf = base64.b64encode(final_taf.encode('utf-8')).decode('utf-8')
-
-    return f"""
-    <html>
-    <head>{REPORT_CSS}</head>
-    <body>
-        <div class='container'>
-            <h2>Transmission Status</h2>
-            <p style='color: #28a745; font-weight: bold;'>Report finalized and cleared by Forecaster.</p>
-            <p style='color: #007bff; font-weight: bold;'>⬇️ Local hard drive download initiated automatically.</p>
-            <hr>
-            <pre style='background: #f8f9fa; padding: 15px; border: 1px solid #ccc;'>{final_taf}</pre>
-            <a href='/'><button style='background: #6c757d;'>Create Another Spot Forecast</button></a>
-        </div>
-
-        <script>
-            var base64Data = "{escaped_taf}";
-            var decodedText = atob(base64Data);
-            var blob = new Blob([decodedText], {{type: "text/plain;charset=utf-8"}});
-
-            var downloadLink = document.createElement("a");
-            downloadLink.href = URL.createObjectURL(blob);
-            downloadLink.download = "SPOT_TAF_{datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M%Z')}.txt";
-
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
-        </script>
-    </body>
-    </html>
-    """
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5005))
