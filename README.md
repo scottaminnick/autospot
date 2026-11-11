@@ -67,12 +67,11 @@ Production rollout remains a separate step after staging review.
 ## Forecaster workflow
 
 1. Sign in and request a location, UTC start and duration (1–72 hours).
-2. Review source times, field quality and original model guidance; complete and edit the draft.
-3. Download the edited report as UTF-8 text and use the established coordination
-   and NAOC archive workflow. The download does not send or archive a report.
+2. Review the raw ECMWF values and meteogram. Open the aviation units or full source details as needed.
+3. Edit the spot forecast directly in the text box. The structured element editor is optional.
+4. Confirm service responsibility and select **Approve & Save Report**. This checks and approves the current text in one action, then downloads it as a local UTF-8 text file. The approved page also offers the provenance ZIP.
 
-The approved text and provenance ZIP are available after saved-version approval.
-Confirm service responsibility under the local procedure before finalizing.
+Use the established coordination and NAOC archive workflow after download.
 
 ## Credit
 
@@ -103,7 +102,7 @@ See [PR 4 behavior, validation and limits](docs/pr4-reviewed-spot-forecast.md).
 
 ## PR 5: saved-version approval and archive downloads
 
-Save and review the forecast body, then finalize that exact version with an
+Review the forecast body, then approve and save that exact text with an
 explicit forecaster and coordination attestation. Edits/rebuilds create a new
 draft and invalidate old approval/download links. Approved UTF-8 text and the
 ZIP share one saved snapshot. The ZIP includes original guidance, manual/derived

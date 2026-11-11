@@ -178,6 +178,36 @@ class WebReviewTests(unittest.TestCase):
         form.update(changes)
         return form
 
+    def test_raw_guidance_precedes_directly_editable_forecast_text(self):
+        url = self.create()
+        page = self.client.get(url, base_url=BASE)
+        raw_start = page.text.index('id="raw-guidance"')
+        editor_start = page.text.index('<textarea id="taf_content"')
+        elements_start = page.text.index('<details class="element-review">')
+        self.assertLess(raw_start, editor_start)
+        self.assertLess(editor_start, elements_start)
+        raw_html = page.text[raw_start:editor_start]
+        self.assertIn("<td>0 / -10</td>", raw_html)
+        self.assertIn("Support only", raw_html)
+        self.assertIn('href="#forecast-text"', raw_html)
+
+        revision, before = self.workspace(url)
+        edited = before["document"]["body"] + "\nRemarks: Edited directly."
+        saved = self.client.post(
+            url + "/text",
+            base_url=BASE,
+            data={
+                "csrf_token": self.token(self.client),
+                "revision": str(revision),
+                "taf_content": edited,
+                "action": "save",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(saved.status_code, 200)
+        self.assertIn("Remarks: Edited directly.", saved.text)
+        self.assertEqual(self.workspace(url)[1]["data"], before["data"])
+
     def test_generate_owned_workspace_common_completion_and_original_unchanged(self):
         url = self.create()
         before = deepcopy(self.workspace(url)[1]["data"])
@@ -198,7 +228,7 @@ class WebReviewTests(unittest.TestCase):
         page = self.client.get(url, base_url=BASE)
         self.assertEqual(page.status_code, 200)
         self.assertIn("23020G35KT P6SM OVC025", page.text)
-        self.assertIn("Finalize saved version", page.text)
+        self.assertIn("Approve &amp; Save Report", page.text)
         self.assertNotIn("[VISIBILITY REQUIRED]", page.text)
 
     def test_conditional_group_ui_datetime_inputs_and_atomic_bad_input(self):

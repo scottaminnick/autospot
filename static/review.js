@@ -9,3 +9,9 @@ document.querySelectorAll('.use-weather').forEach((button) => {
     }
   });
 });
+
+const approvedDownload = document.getElementById('approved-text-download');
+if (window.location.hash === '#download-approved' && approvedDownload) {
+  window.location.replace('#approved-forecast');
+  approvedDownload.click();
+}

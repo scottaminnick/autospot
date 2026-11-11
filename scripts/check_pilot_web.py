@@ -96,6 +96,11 @@ def check_pilot(base, password, start, latitude, longitude, duration, flight_lev
                 r'<textarea id="taf_content"[^>]*>(.*?)</textarea>', review.text, re.S
             )
             require(draft, "Expected an editable draft body")
+            raw_heading = review.text.find('id="raw-guidance"')
+            require(
+                0 <= raw_heading < draft.start(),
+                "Expected raw guidance before the editor",
+            )
             body = unescape(draft[1])
             require(f"FM{start:%d%H%M}" in body, "Draft start changed")
             require(

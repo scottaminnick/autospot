@@ -2,7 +2,7 @@
 {% block title %}AutoSpot request{% endblock %}
 {% block content %}
 <main class="container">
-  <h1>Aviation Spot Forecast Generator</h1>
+  <h1>NWSI 10-813 Spot Forecast Generator</h1>
   <form action="{{ url_for('web.submit') }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="model">Model guidance</label>
@@ -52,7 +52,7 @@
       <option value="other_office_coordination">Other-office coordination required</option>
     </select>
     <p>The reference map classifies aviation geometry; confirm the responsible office under the local spot procedure.</p>
-    <button type="submit">Generate draft</button>
+    <button type="submit">Generate Report</button>
   </form>
 </main>
 {% endblock %}

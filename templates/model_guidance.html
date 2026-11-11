@@ -1,0 +1,105 @@
+{% macro raw(fields, key) -%}
+  {%- set field = fields.get(key) -%}
+  {%- if field and field.status == 'direct' and field.value is not none -%}
+    {{ field.value }}
+  {%- else -%}
+    {{ (field.status if field else 'unavailable')|replace('_', ' ') }}
+  {%- endif -%}
+{%- endmacro %}
+<section aria-labelledby="raw-guidance">
+  <h1 id="raw-guidance">Raw ECMWF guidance</h1>
+  <p>Model: ECMWF IFS {{ data.grid }}. Cycle: {{ data.cycle_utc }}.<br>
+     Requested UTC period: {{ data.start_utc }} to {{ data.end_utc }}.</p>
+  <p>Native field quality: {{ data.counts.direct }} direct; {{ data.counts.missing }} missing;
+     {{ data.counts.invalid }} invalid; {{ data.counts.unsupported }} unsupported.</p>
+  <p>Requested location: {{ data.latitude }}, {{ data.longitude }}. Values are decoded from ECMWF GRIB2 at the nearest grid point and shown at native model times. Support rows bracket the requested period.</p>
+  <p><a href="#forecast-text">Edit forecast text</a></p>
+  <div class="guidance-table" role="region" aria-label="Raw ECMWF guidance table" tabindex="0">
+    <table>
+      <thead><tr>
+        <th scope="col">Valid time (UTC)</th>
+        <th scope="col">10 m U / V (m/s)</th>
+        <th scope="col">10 m gust (m/s)</th>
+        <th scope="col">2 m temp / dewpoint (K)</th>
+        <th scope="col">Total cloud (fraction)</th>
+        <th scope="col">Precip rate (kg/m²/s) / type code</th>
+      </tr></thead>
+      <tbody>
+      {% for row in data.rows %}
+        <tr>
+          <th scope="row">{{ row.valid_utc }}{% if row.support_only %}<br>Support only{% endif %}</th>
+          <td>{{ raw(row.fields, 'u10') }} / {{ raw(row.fields, 'v10') }}</td>
+          <td>{{ raw(row.fields, 'gust10') }}</td>
+          <td>{{ raw(row.fields, 'temperature2') }} / {{ raw(row.fields, 'dewpoint2') }}</td>
+          <td>{{ raw(row.fields, 'tcc') }}</td>
+          <td>{{ raw(row.fields, 'precip_rate') }} / {{ raw(row.fields, 'precip_type') }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if chart %}
+  <details class="review-panel" open>
+    <summary>Meteogram</summary>
+  <h3>Original model guidance</h3>
+  <p>Visibility and cloud-base heights are unavailable from this ECMWF feed. The cloud panel shows modeled coverage by layer.</p>
+  <img class="meteogram" src="data:image/png;base64,{{ chart }}" alt="Original model guidance time series">
+  </details>
+  {% endif %}
+  <details class="review-panel">
+    <summary>Guidance in aviation units</summary>
+  {% if guidance %}
+  <h3>Native-time guidance in aviation units</h3>
+  <p>Support-only rows bracket the requested period. This table preserves native nearest-grid-point samples. Requested-time winds are listed separately.</p>
+  <table>
+    <thead><tr><th>UTC valid time</th><th>Wind</th><th>Gust maximum (kt) / UTC interval</th><th>Total cloud (%)</th><th>Instant precipitation (mm/h)</th><th>Source / unresolved fields</th></tr></thead>
+    <tbody>{% for row in guidance %}<tr>
+      <td>{{ row.valid_utc }}{% if row.support_only %} (support only){% endif %}</td>
+      <td>{{ row.wind if row.wind is not none else 'Missing' }}</td>
+      <td>{% if row.gust is not none %}{{ '%.1f'|format(row.gust) }}<br>{{ row.gust_interval[0] }} to {{ row.gust_interval[1] }}{% else %}Unavailable{% endif %}</td>
+      <td>{{ '%.1f'|format(row.cloud) if row.cloud is not none else 'Missing' }}</td>
+      <td>{{ '%.3f'|format(row.rate) if row.rate is not none else 'Missing' }}</td>
+      <td>{{ row.providers|join(', ') }}<br>{{ row.problems|join('; ') }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+  <h3>Requested-time winds</h3>
+  <p>Continuous-field time interpolation uses two adjacent native slots no more than three hours apart. Missing native samples remain gaps. Categorical weather, cloud cover, precipitation and interval maxima are not interpolated.</p>
+  <table><thead><tr><th>UTC valid time</th><th>10 m wind / time source</th><th>Optional FL winds (true direction/knots)</th></tr></thead><tbody>
+  {% for row in data.window_rows %}<tr>
+    <td>{{ row.valid_utc }}{% if row.support_only %} (end support only){% endif %}</td>
+    <td>{{ wind_text(row.fields) or 'Unavailable — review required' }}<br>
+      {% if row.interpolated %}Interpolated boundary; initial weather/sky require review.<br>{% for name in ['u10', 'v10'] %}{% set field = row.fields.get(name, {}) %}{{ name }}: {{ field.status }}{% if field.provenance and field.provenance.source_times_utc %}; {{ field.provenance.source_times_utc|join(' → ') }}{% else %}; {{ field.reason }}{% endif %}<br>{% endfor %}{% else %}Native model time{% endif %}</td>
+    <td>{% for level in row.flight_levels %}FL{{ '%03d'|format(level.flight_level) }} — {% if level.status == 'derived' %}{{ wind_components(level.u, level.v) }}{% else %}Unavailable: {{ level.reason }}{% endif %}<br>Target {{ '%.2f'|format(level.pressure_pa / 100) }} hPa; brackets {{ level.provenance.bracket_hpa|join(' / ') }} hPa<br>{% else %}Not requested{% endfor %}</td>
+  </tr>{% endfor %}</tbody></table>
+  </details>
+  <details class="review-panel">
+    <summary>All ECMWF fields and source metadata</summary>
+    {% for row in data.rows %}
+    <details>
+      <summary>{{ row.valid_utc }}{% if row.support_only %} (support only){% endif %}</summary>
+      <div class="guidance-table">
+        <table>
+          <thead><tr><th scope="col">Field</th><th scope="col">Raw value</th><th scope="col">Unit</th><th scope="col">Source</th></tr></thead>
+          <tbody>
+          {% for name, field in row.fields.items() %}
+          <tr>
+            <th scope="row">{{ name }}</th>
+            <td>{{ raw(row.fields, name) }}</td>
+            <td>{{ field.unit or '—' }}</td>
+            <td>{% if field.status == 'direct' and field.provenance %}
+              {{ field.provenance.provider }}{% if field.provenance.sample_latitude is defined %} · {{ field.provenance.sample_latitude }}, {{ field.provenance.sample_longitude }}{% endif %}
+              {% if field.provenance.interval_start_utc and field.provenance.interval_end_utc and field.provenance.interval_start_utc != field.provenance.interval_end_utc %}
+                <br>{{ field.provenance.interval_start_utc }} to {{ field.provenance.interval_end_utc }}
+              {% endif %}
+            {% else %}{{ (field.reason or '—')|replace('_', ' ') }}{% endif %}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </details>
+    {% endfor %}
+    <details><summary>Complete guidance and provenance (JSON)</summary><pre>{{ data|tojson(indent=2) }}</pre></details>
+  </details>
+</section>

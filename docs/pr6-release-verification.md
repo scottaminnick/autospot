@@ -135,9 +135,11 @@ authenticated HTTPS drafts and recycled its Gunicorn worker during the checks.
 
 The [hosted evidence](evidence/pr6-railway-pilot.json) records the deployment
 revisions and request IDs. The pilot demonstrates the workflow and timing
-for these requests. The pilot is pinned to the tested revision recorded in
-the evidence. In Railway, use the staging service's Variables view to retrieve
-its login password. Review the repeat latency alongside your operational cases
+for these requests on the revision recorded in the evidence. In Railway, use
+the staging service's Variables view to retrieve its login password. The review
+page opens on raw native-time ECMWF values and the meteogram. The editable
+forecast box and **Approve & Save Report** restore the original sequence.
+The service check and local UTF-8 download apply to the text in the box. Review the repeat latency alongside your operational cases
 before release.
 
 ## Forecaster pilot and release decision
