@@ -2,16 +2,14 @@
 {% block title %}AutoSpot request{% endblock %}
 {% block content %}
 <main class="container">
-  <h1>Aviation Spot Forecast Generator</h1>
-  <form action="{{ url_for('web.submit') }}" method="post">
+  <h1>NWSI 10-813 Spot Forecast Generator</h1>
+  <form action="{{ url_for('web.submit', simple=True) }}" method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="model">Model guidance</label>
+    <label for="model">Model Routing</label>
     <select id="model" name="model_choice">
-      {% for model in ['ECMWF'] %}
-      <option value="{{ model }}" {% if values.model_choice == model %}selected{% endif %}>{{ model }} (global 0.25°)</option>
-      {% endfor %}
+      <option value="ECMWF" selected>ECMWF IFS (global 0.25°)</option>
+      <option value="GFS" disabled>GFS (unavailable)</option>
     </select>
-    <p>GFS guidance is temporarily unavailable while its data adapter is validated.</p>
     <div class="flex-row">
       <div class="flex-col">
         <label for="latitude">Latitude (negative for south)</label>
@@ -36,23 +34,21 @@
         </select>
       </div>
     </div>
-    <label for="duration">Duration (hours, 1–72)</label>
-    <input id="duration" type="number" name="duration" min="1" max="72" step="1" list="durations" value="{{ values.duration }}" required>
-    <datalist id="durations">{% for n in [12, 24, 36, 48, 72] %}<option value="{{ n }}">{% endfor %}</datalist>
-    <label for="sar_name">Operation name / label</label>
-    <input id="sar_name" type="text" name="sar_name" maxlength="120" value="{{ values.sar_name }}">
-    <label for="flight_levels">Optional winds aloft (comma-separated flight levels)</label>
-    <input id="flight_levels" type="text" name="flight_levels" maxlength="100" placeholder="FL030, FL060, FL090, FL180, FL300">
-    <p>Leave blank for surface guidance only. FL means standard pressure altitude; available levels require valid pressure brackets above the model surface. Up to 12 levels, FL010–FL450.</p>
-    <label for="domain_disposition">Service-domain review / coordination</label>
-    <select id="domain_disposition" name="domain_disposition">
-      <option value="pending">Review pending — incomplete draft only</option>
-      <option value="awc_coordinated">AWC service coordinated by forecaster</option>
-      <option value="aawu_redirect">AAWU redirect / coordination required</option>
-      <option value="other_office_coordination">Other-office coordination required</option>
-    </select>
-    <p>The reference map classifies aviation geometry; confirm the responsible office under the local spot procedure.</p>
-    <button type="submit">Generate draft</button>
+    <div class="flex-row">
+      <div class="flex-col">
+        <label for="duration">Forecast Duration</label>
+        <select id="duration" name="duration">
+          {% for hours in [12, 24, 36] %}
+          <option value="{{ hours }}" {% if values.duration == hours|string %}selected{% endif %}>{{ hours }} hours</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex-col">
+        <label for="sar_name">SAR Name / Label</label>
+        <input id="sar_name" type="text" name="sar_name" maxlength="120" value="{{ values.sar_name }}">
+      </div>
+    </div>
+    <button type="submit">Generate Report</button>
   </form>
 </main>
 {% endblock %}

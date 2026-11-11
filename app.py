@@ -40,7 +40,14 @@ from web_security import (
 )
 from weather.pipeline import retrieve_forecast
 from weather.fields import DataFault
-from weather.draft import build_draft, chart, guidance_rows, wind, wind_components
+from weather.draft import (
+    build_draft,
+    build_spot_report,
+    chart,
+    guidance_rows,
+    wind,
+    wind_components,
+)
 from weather.domain import location_map
 from weather.aviation import ElementError
 from weather.product import initialize_product, apply_elements, editor_rows
@@ -146,18 +153,18 @@ def index():
     return render_template(
         "request.html",
         values={
-            "model_choice": "ECMWF",
             "start_date": now.strftime("%Y-%m-%d"),
             "start_hour": now.strftime("%H"),
             "duration": "24",
-            "sar_name": "AUTO-SPOT",
+            "sar_name": "AUTO-SPOT-PROD",
         },
     )
 
 
-@web.route("/submit", methods=["POST"])
+@web.route("/submit", methods=["POST"], defaults={"simple": False})
+@web.route("/generate", methods=["POST"], defaults={"simple": True})
 @login_required
-def submit():
+def submit(simple):
     require_csrf()
     forecast = parse_forecast_request(request.form)
     if forecast.model != "ECMWF":
@@ -167,6 +174,13 @@ def submit():
     rate_limit(
         [("submit_global", "all", 20, 300), ("submit_session", g.auth_sid, 3, 300)]
     )
+    if simple:
+        report, image, data = generate_forecast(
+            forecast, report_builder=build_spot_report
+        )
+        return render_template(
+            "spot_report.html", report=report, chart=image, data=data
+        )
     report, image, data = generate_forecast(forecast)
     if data:
         workspace = {
@@ -455,24 +469,19 @@ def conditional_editor(groups):
     return output + [{} for _ in range(min(12 - len(output), max(1, 4 - len(output))))]
 
 
-@web.route("/transmit", methods=["POST"])
+@web.route("/transmit", methods=["POST"], defaults={"approved": False})
+@web.route("/save-report", methods=["POST"], defaults={"approved": True})
 @login_required
-def transmit():
+def transmit(approved):
     require_csrf()
-    final_taf = validate_report(request.form)
+    text = validate_report(request.form)
     rate_limit([("export_session", g.auth_sid, 30, 60)])
-    # Direct attachment preserves the exact UTF-8 text and removes the HTML/JS sink.
-    filename = f"DRAFT_SPOT_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%SZ')}.txt"
-    return send_file(
-        io.BytesIO(final_taf.encode("utf-8")),
-        mimetype="text/plain",
-        as_attachment=True,
-        download_name=filename,
-        max_age=0,
-    )
+    prefix = "SPOT_TAF" if approved else "DRAFT_SPOT"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
+    return text_attachment(text, f"{prefix}_{stamp}.txt")
 
 
-def generate_forecast(forecast):
+def generate_forecast(forecast, *, report_builder=build_draft):
     try:
         data = retrieve_forecast(forecast)
     except DataFault as error:
@@ -498,7 +507,7 @@ def generate_forecast(forecast):
         raise ForecastUnavailable(
             "Verified model guidance could not be retrieved within the request limits. Try again later."
         ) from None
-    return build_draft(data, forecast.label), chart(data), data
+    return report_builder(data, forecast.label), chart(data), data
 
 
 def create_app(test_config=None):

@@ -28,3 +28,11 @@ details pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }
 .checkbox-label input { width: auto; }
 .use-weather { padding: 5px 8px; margin-top: 4px; font-size: .85rem; }
 input[type='datetime-local'] { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+
+.native-table { overflow-x: auto; }
+.native-table table { min-width: 630px; }
+.native-table thead { background: #edf3f8; }
+
+@media (max-width: 540px) {
+  .flex-row { flex-direction: column; }
+}

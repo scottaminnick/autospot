@@ -86,7 +86,7 @@ class WebFoundationTests(unittest.TestCase):
         return value
 
     def test_routes_require_authentication(self):
-        for path in ["/", "/submit", "/transmit"]:
+        for path in ["/", "/generate", "/submit", "/save-report", "/transmit"]:
             with self.subTest(path=path):
                 r = self.get(path) if path == "/" else self.post(path, {})
                 self.assertEqual(r.status_code, 302)
