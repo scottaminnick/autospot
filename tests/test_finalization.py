@@ -352,6 +352,43 @@ class FinalizationWebTests(unittest.TestCase):
         )
         self.assertNotIn("finalization", self.workspace(url)[1])
 
+    def test_approve_and_save_downloads_current_editor_text(self):
+        url = self.create()
+        before = self.workspace(url)
+        invalid_text = "FM312100 23020KT P6SM [SKY REQUIRED]\nRemarks: My edits"
+        failed = self.client.post(
+            url + "/text",
+            base_url=BASE,
+            data=self.text_form(
+                url, action="approve_download", taf_content=invalid_text
+            ),
+        )
+        self.assertEqual(failed.status_code, 400)
+        self.assertIn("Remarks: My edits", failed.text)
+        self.assertIn('role="alert"', failed.text)
+        self.assertEqual(self.workspace(url), before)
+
+        approved = "FM312100 23020KT P6SM SKC\nRemarks: Météo 🙂"
+        response = self.client.post(
+            url + "/text",
+            base_url=BASE,
+            data=self.text_form(
+                url, action="approve_download", taf_content=approved, approve=""
+            ),
+        )
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["Location"], url + "#download-approved")
+        revision, workspace = self.workspace(url)
+        self.assertEqual(revision, before[0] + 1)
+        self.assertEqual(workspace["document"]["body"], approved)
+        self.assertEqual(workspace["data"], before[1]["data"])
+        version = workspace["document"]["version"]
+        download = self.client.get(url + f"/final/{version}.txt", base_url=BASE)
+        self.assertEqual(download.status_code, 200)
+        self.assertIn(approved.encode(), download.data)
+        page = self.client.get(url, base_url=BASE)
+        self.assertIn('id="approved-text-download" download', page.text)
+
     def test_free_text_completion_can_finalize_without_synthetic_model_defaults(self):
         url = self.create()
         self.client.post(

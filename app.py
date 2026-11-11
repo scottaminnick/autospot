@@ -150,7 +150,7 @@ def index():
             "start_date": now.strftime("%Y-%m-%d"),
             "start_hour": now.strftime("%H"),
             "duration": "24",
-            "sar_name": "AUTO-SPOT",
+            "sar_name": "AUTO-SPOT-PROD",
         },
     )
 
@@ -270,6 +270,10 @@ def review(identifier):
         workspace.pop("finalization", None)
         store.save(identifier, g.auth_sid, revision, workspace)
         return redirect(url_for("web.review", identifier=identifier), code=303)
+    return render_review(identifier, revision, workspace)
+
+
+def render_review(identifier, revision, workspace, attempted_approval=None):
     data = workspace["data"]
     document = workspace.get("document")
     final = workspace.get("finalization")
@@ -299,7 +303,14 @@ def review(identifier):
             pass
     return render_template(
         "review.html",
-        report=document["body"] if document else body_from_product(workspace),
+        report=(
+            attempted_approval["body"]
+            if attempted_approval
+            else document["body"]
+            if document
+            else body_from_product(workspace)
+        ),
+        attempted_approval=attempted_approval,
         chart=chart(data),
         data=data,
         guidance=guidance_rows(data),
@@ -339,25 +350,57 @@ def save_text(identifier):
         raise ReviewConflict()
     body = validate_report(request.form)
     action = single(request.form, "action", "save")
-    if action not in {"save", "draft", "finalize"}:
+    if action not in {"save", "draft", "finalize", "approve_download"}:
         raise RequestValidationError("Choose a valid text action.")
     current = workspace.get("document")
-    if action == "finalize":
-        if not current or body != current["body"]:
-            raise FinalizationError(
-                "Save text changes as a new draft, review that saved version, then finalize."
+    if action in {"finalize", "approve_download"}:
+        approve_download = action == "approve_download"
+        changed = not current or body != current["body"]
+        if changed:
+            if not approve_download:
+                raise FinalizationError(
+                    "Save text changes as a new draft, review that saved version, then finalize."
+                )
+        if changed or not workspace.get("finalization"):
+            disposition = single(request.form, "service_disposition", "pending")
+            note = single(request.form, "coordination_note", "")
+            candidate = (
+                dict(workspace, document=new_document(body, revision + 1))
+                if changed
+                else workspace
             )
-        if not workspace.get("finalization"):
-            workspace["finalization"] = prepare_finalization(
-                workspace,
-                identifier,
-                revision,
-                single(request.form, "approve", "") == "yes",
-                single(request.form, "service_disposition", "pending"),
-                single(request.form, "coordination_note", ""),
-            )
-            store.save(identifier, g.auth_sid, revision, workspace)
-        return redirect(url_for("web.review", identifier=identifier), code=303)
+            try:
+                candidate["finalization"] = prepare_finalization(
+                    candidate,
+                    identifier,
+                    revision,
+                    approve_download or single(request.form, "approve", "") == "yes",
+                    disposition,
+                    note,
+                )
+            except FinalizationError as error:
+                if not approve_download:
+                    raise
+                return render_review(
+                    identifier,
+                    revision,
+                    workspace,
+                    attempted_approval={
+                        "body": body,
+                        "disposition": disposition,
+                        "note": note,
+                        "error": str(error),
+                    },
+                ), 400
+            store.save(identifier, g.auth_sid, revision, candidate)
+        return redirect(
+            url_for(
+                "web.review",
+                identifier=identifier,
+                _anchor="download-approved" if approve_download else None,
+            ),
+            code=303,
+        )
     if not current or body != current["body"] or workspace.get("finalization"):
         workspace["document"] = new_document(body, revision + 1)
         workspace.pop("finalization", None)

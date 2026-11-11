@@ -1,0 +1,163 @@
+{
+  "railway_environment": "staging",
+  "region": "us-west2",
+  "replicas": 1,
+  "gunicorn_workers": 1,
+  "gunicorn_worker_timeout_seconds": 180,
+  "gunicorn_recycle_after_requests": 5,
+  "gunicorn_recycle_jitter_requests": 2,
+  "healthcheck_path": "/healthz",
+  "healthcheck_timeout_seconds": 60,
+  "python_version": "3.12.14",
+  "gunicorn_version": "25.3.0",
+  "locked_packages_matched": 35,
+  "startup_pip_check_passed": true,
+  "known_vulnerabilities_in_lockfile_audit": 0,
+  "worker_recycling_observed": true,
+  "baseline": {
+    "commit": "a62f58787379336165868a1b2546026c9b7f6490",
+    "deployment_id": "90023391-852a-476a-a66a-356b123bb938",
+    "health_and_drafts": {
+      "checked_at": "2026-11-11T06:07:50.194533+00:00",
+      "request_start_utc": "2026-11-11T07:00:00+00:00",
+      "duration_hours": 6,
+      "flight_levels": "",
+      "checks": [
+        {
+          "attempt": "first",
+          "seconds_to_review": 21.091,
+          "submit_request_id": "01dc823415c643ecadf44566ee8d30bd",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        },
+        {
+          "attempt": "repeat",
+          "seconds_to_review": 8.402,
+          "submit_request_id": "1004e68261784aae97cd558677519abf",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        }
+      ]
+    }
+  },
+  "candidate": {
+    "commit": "29b38c93fe70df805bf740723f48d5d0e075d91b",
+    "deployment_id": "3aa7e093-5a53-4d8e-8de7-5088407c1ac7",
+    "surface": {
+      "checked_at": "2026-11-11T06:10:41.589963+00:00",
+      "request_start_utc": "2026-11-11T07:00:00+00:00",
+      "duration_hours": 24,
+      "flight_levels": "",
+      "checks": [
+        {
+          "attempt": "first",
+          "seconds_to_review": 28.169,
+          "submit_request_id": "11214568467447c9b257c398e210e516",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        },
+        {
+          "attempt": "repeat",
+          "seconds_to_review": 8.447,
+          "submit_request_id": "e8ce0d5736454f6f8323d08c64eb03ca",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        }
+      ]
+    },
+    "cold_cache_after_deployment": true,
+    "submit_duration_ms": [
+      26908,
+      6668
+    ],
+    "concurrency": {
+      "start_utc": "2026-11-11T07:00:00+00:00",
+      "duration_hours": 6,
+      "requests": [
+        {
+          "point": [
+            39.301,
+            -94.711
+          ],
+          "submit_request_id": "4422fac2ba414d27bed5444126a275c0",
+          "seconds_to_review": 29.389
+        },
+        {
+          "point": [
+            39.302,
+            -94.712
+          ],
+          "submit_request_id": "319d8e847fa040ac873d6d8f5e0be40e",
+          "seconds_to_review": 29.884
+        }
+      ]
+    },
+    "concurrent_submit_duration_ms": [
+      14082,
+      11734
+    ],
+    "archive": {
+      "duration_hours": 6,
+      "flight_levels": [
+        30,
+        450
+      ],
+      "exact_utf8_and_archive_hashes_verified": true,
+      "forecaster_entries": "Synthetic pilot test values"
+    }
+  },
+  "railway_service_metrics": {
+    "scope": "staging service during pilot, one-hour API lookback",
+    "sample_rate_seconds": 30,
+    "max_sample": {
+      "CPU_USAGE": 0.7843544333333333,
+      "MEMORY_USAGE_GB": 0.19273728,
+      "NETWORK_RX_GB": 0.079078285,
+      "NETWORK_TX_GB": 0.005139387
+    }
+  },
+  "rollback_rehearsal": {
+    "method": "Redeploy the saved baseline deployment and then the saved candidate deployment",
+    "baseline_redeployment_id": "1c41d914-fece-4080-be9d-951be72cf898",
+    "baseline_seconds_from_creation_to_first_health_200": 31.456,
+    "baseline_health_and_drafts": {
+      "checked_at": "2026-11-11T06:13:50.784166+00:00",
+      "request_start_utc": "2026-11-11T07:00:00+00:00",
+      "duration_hours": 6,
+      "flight_levels": "",
+      "checks": [
+        {
+          "attempt": "first",
+          "seconds_to_review": 14.953,
+          "submit_request_id": "12483740a170401ab8533c4e568a3992",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        },
+        {
+          "attempt": "repeat",
+          "seconds_to_review": 4.968,
+          "submit_request_id": "35e4563a00094ae5899dcf53175d3f3f",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        }
+      ]
+    },
+    "pre_rollback_session_required_new_login": true,
+    "candidate_redeployment_id": "c01158e3-0073-4855-8eb5-22cb02f856a6",
+    "candidate_seconds_from_creation_to_first_health_200": 25.216,
+    "candidate_health_and_drafts": {
+      "checked_at": "2026-11-11T06:15:16.289271+00:00",
+      "request_start_utc": "2026-11-11T07:00:00+00:00",
+      "duration_hours": 6,
+      "flight_levels": "30,450",
+      "checks": [
+        {
+          "attempt": "first",
+          "seconds_to_review": 21.555,
+          "submit_request_id": "8613f1631682484592f25f2290d533b8",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        },
+        {
+          "attempt": "repeat",
+          "seconds_to_review": 5.199,
+          "submit_request_id": "b630940203624f6eb3c35adc261ed765",
+          "cycle_utc": "2026-11-10T18:00:00+00:00"
+        }
+      ]
+    }
+  }
+}

@@ -9,12 +9,10 @@ reviewed guidance and follows the existing AWC coordination/archive workflow.
 [PR 2](docs/pr2-ecmwf-pipeline.md) replaces retrieval with validated fields,
 bounded downloading, shared positive caching and same-run provider fallback.
 
-The current path supports ECMWF IFS 0.25°. GFS is unavailable until its adapter
-passes the same contracts. Missing visibility/cloud bases do not become normal
-weather values: the draft contains explicit completion prompts. Automatic weather
-coding, time/FL interpolation, operational domain gating and finalization/version
-tracking remain later rebuild work. Aloft output is withheld pending correct FL
-handling in PR 3; pressure-field decode contracts are available for that work.
+The app supports ECMWF IFS 0.25° and optional flight-level winds. GFS is
+unavailable pending validation. Required visibility, weather and sky elements
+remain explicit until the forecaster completes them. Review the
+[pilot results and release status](docs/pr6-release-verification.md).
 
 ## Install and test
 
@@ -69,12 +67,11 @@ Production rollout remains a separate step after staging review.
 ## Forecaster workflow
 
 1. Sign in and request a location, UTC start and duration (1–72 hours).
-2. Review source times, field quality and original model guidance; complete and edit the draft.
-3. Download the edited report as UTF-8 text and use the established coordination
-   and NAOC archive workflow. The download does not send or archive a report.
+2. Review the raw ECMWF values and meteogram. Open the aviation units or full source details as needed.
+3. Edit the spot forecast directly in the text box. The structured element editor is optional.
+4. Confirm service responsibility and select **Approve & Save Report**. This checks and approves the current text in one action, then downloads it as a local UTF-8 text file. The approved page also offers the provenance ZIP.
 
-Draft/version finalization, missing-field completion, authoritative spot-domain
-routing, and provenance packages are covered by later PRs.
+Use the established coordination and NAOC archive workflow after download.
 
 ## Credit
 
@@ -105,7 +102,7 @@ See [PR 4 behavior, validation and limits](docs/pr4-reviewed-spot-forecast.md).
 
 ## PR 5: saved-version approval and archive downloads
 
-Save and review the forecast body, then finalize that exact version with an
+Review the forecast body, then approve and save that exact text with an
 explicit forecaster and coordination attestation. Edits/rebuilds create a new
 draft and invalidate old approval/download links. Approved UTF-8 text and the
 ZIP share one saved snapshot. The ZIP includes original guidance, manual/derived

@@ -28,3 +28,13 @@ details pre { white-space: pre-wrap !important; overflow-wrap: anywhere; }
 .checkbox-label input { width: auto; }
 .use-weather { padding: 5px 8px; margin-top: 4px; font-size: .85rem; }
 input[type='datetime-local'] { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+
+.guidance-table { overflow-x: auto; }
+.guidance-table table { min-width: 640px; }
+.guidance-table thead { background: #edf3f8; }
+.guidance-table td { font-variant-numeric: tabular-nums; }
+.review-panel, .element-review { margin: 12px 0; }
+.review-panel > summary, .element-review > summary { cursor: pointer; font-weight: bold; }
+
+.btn-approve { background: #21723b; font-weight: bold; }
+.btn-approve:hover { background: #195a2f; }

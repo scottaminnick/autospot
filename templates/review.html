@@ -2,19 +2,63 @@
 {% block title %}AutoSpot draft review{% endblock %}
 {% block content %}
 <main class="report-wrap">
-  <h1>Forecaster review and edit</h1>
-  <p class="notice">{% if finalization %}Saved version {{ finalization.approved_version }} finalized for local download at {{ finalization.finalized_at }}. Editing and saving creates a new draft that needs approval.{% elif text_validated %}Saved text structure checked. Review the forecast and coordination before finalizing this version.{% elif product and product.complete %}Element review recorded. Save and review the text before finalizing this version.{% else %}Incomplete draft: complete visibility, weather and sky using reviewed guidance. You can use the element form or complete the text directly.{% endif %} Verify the location's service domain under the local procedure.</p>
   {% if data %}
-  <p>Model: ECMWF IFS {{ data.grid }}. Cycle: {{ data.cycle_utc }}.<br>
-     Requested UTC period: {{ data.start_utc }} to {{ data.end_utc }}.</p>
-  <p>Native field quality: {{ data.counts.direct }} direct; {{ data.counts.missing }} missing;
-     {{ data.counts.invalid }} invalid; {{ data.counts.unsupported }} unsupported.</p>
+  {% include "model_guidance.html" %}
+  {% else %}
+  <h1>Forecaster review and edit</h1>
+  {% endif %}
+  <h2 id="forecast-text">Saved forecast text{% if document %} — version {{ document.version }}{% endif %}</h2>
+  <p class="notice">{% if finalization %}Saved version {{ finalization.approved_version }} finalized for local download at {{ finalization.finalized_at }}. Editing and saving creates a new draft that needs approval.{% elif text_validated %}Saved text structure checked. Review the forecast and coordination before finalizing this version.{% elif product and product.complete %}Element review recorded. Save and review the text before finalizing this version.{% else %}Incomplete draft: complete visibility, weather and sky using reviewed guidance. You can use the element form or complete the text directly.{% endif %} Verify the location's service domain under the local procedure.</p>
   {% if review_id %}
-  <section class="element-review">
-    <h2>Review forecast elements</h2>
-    <p>Use these elements to rebuild the draft, then make any free-text edits below. Rebuilding creates a new saved draft and clears its prior approval. Blank visibility, weather or sky stays unresolved. Enter <strong>NONE</strong> only after reviewing that no significant weather is expected.</p>
+  <p>Edit the forecast directly in this text box. The download includes the request metadata. Use the Remarks field in the text for optional plain-language notes. FL winds use full UTC times and plain-language direction/speed. Missing optional winds can be explicitly described as unavailable with a reason.</p>
+  <form action="{{ url_for('web.save_text',identifier=review_id) }}" method="post">
+    <input type="hidden" name="revision" value="{{ revision }}">
+  {% else %}<form action="{{ url_for('web.transmit') }}" method="post">{% endif %}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if attempted_approval %}<p class="error" role="alert">{{ attempted_approval.error }}</p>{% endif %}
+    <label for="taf_content">Spot forecast text</label>
+    <textarea id="taf_content" name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
+    {% if review_id %}
+    <fieldset>
+      <legend>Service responsibility</legend>
+      <label for="service_disposition">Service responsibility / coordination</label>
+      {% set disposition = attempted_approval.disposition if attempted_approval else finalization.attestation.service_disposition if finalization else data.domain.disposition %}
+      <select id="service_disposition" name="service_disposition">
+        {% for value,label in [('pending','Review pending'),('awc_coordinated','AWC service verified / coordination completed'),('aawu_redirect','AAWU redirect / coordination required'),('other_office_coordination','Other-office coordination required')] %}
+        <option value="{{ value }}" {% if disposition == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <label for="coordination_note">Coordination / service verification note</label>
+      <input id="coordination_note" type="text" name="coordination_note" maxlength="500" value="{{ attempted_approval.note if attempted_approval else finalization.attestation.coordination_note if finalization else '' }}">
+    </fieldset>
+    <p>Approve after reviewing the location, UTC validity, service responsibility, winds, visibility, weather and sky. The report downloads as a local text file.</p>
+    <button type="submit" class="btn-approve" name="action" value="approve_download">Approve &amp; Save Report</button>
+    <details class="review-panel">
+      <summary>Draft actions</summary>
+      <button type="submit" name="action" value="save">Save text as draft</button>
+      <button type="submit" name="action" value="draft">Download draft</button>
+    </details>
+    {% else %}<button type="submit" class="btn-transmit">Download edited draft</button>{% endif %}
+  </form>
+  {% if candidate_text %}
+  <details><summary>Complete saved text, including request identification</summary><pre>{{ candidate_text }}</pre></details>
+  {% endif %}
+  {% if finalization %}
+  <section class="finalized-export" id="approved-forecast">
+    <h2>Approved version {{ finalization.approved_version }}</h2>
+    <p><a id="approved-text-download" download href="{{ url_for('web.final_text',identifier=review_id,version=finalization.approved_version) }}">Download approved UTF-8 text</a> · <a href="{{ url_for('web.final_package',identifier=review_id,version=finalization.approved_version) }}">Download archive package (ZIP)</a></p>
+    <p>The package contains the exact approved text, provenance/quality JSON and separately identified original-model and reviewed-forecast charts. Place it in the established NAOC folder using the local process. No archive write or external transmission has occurred.</p>
+    <pre class="approved-text">{{ finalization.text }}</pre>
+  </section>
+  {% endif %}
+  {% if data %}
+  <p><a href="#raw-guidance">Back to raw ECMWF guidance</a></p>
+  {% if review_id %}
+  <details class="element-review">
+    <summary>Review forecast elements (optional)</summary>
+    <p>Use these elements to rebuild the draft, then make any free-text edits in the text box. Rebuilding creates a new saved draft and clears its prior approval. Blank visibility, weather or sky stays unresolved. Enter <strong>NONE</strong> only after reviewing that no significant weather is expected.</p>
     <p>This temporary review belongs to your signed-in session and expires 24 hours after creation. It is not an archive.</p>
-    {% if product.unresolved %}<p>The structured form has {{ product.unresolved|length }} unresolved time slots. Free-text completion is tracked separately in the saved forecast below.</p>{% endif %}
+    {% if product.unresolved %}<p>The structured form has {{ product.unresolved|length }} unresolved time slots. Free-text completion is tracked separately in the saved forecast.</p>{% endif %}
     <form action="{{ url_for('web.review',identifier=review_id) }}" method="post">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="revision" value="{{ revision }}">
@@ -41,7 +85,7 @@
         {% for note in row.notes %}<p class="notice">{{ note }}</p>{% endfor %}
         <p>Model precipitation: {{ row.context.precipitation.phase or 'Unavailable / unvalidated' }}{% if row.context.precipitation.rate_mm_h is not none %}; instantaneous rate {{ '%.4f'|format(row.context.precipitation.rate_mm_h) }} mm/h{% endif %}.<br>
           {% if row.context.precipitation.suggestion %}Rain-rate candidate: <code>{{ row.context.precipitation.suggestion }}</code> — review phase, intensity and persistence before use. <button type="button" class="use-weather" data-target="row_{{ row.index }}_weather" data-value="{{ row.context.precipitation.suggestion }}">Replace weather with this candidate</button>{% else %}{{ row.context.precipitation.reason|replace('_',' ') }}.{% endif %}</p>
-        <p>{% if row.context.gust.peak_kt is not none %}Model gust maximum: {{ '%.1f'|format(row.context.gust.peak_kt) }} kt over {{ row.context.gust.interval_start_utc }} to {{ row.context.gust.interval_end_utc }}. This preceding maximum is context for a future gust forecast; enter any chosen G group in the wind field.{% else %}Gust maximum unavailable at this exact valid time; review the native guidance below.{% endif %}</p>
+        <p>{% if row.context.gust.peak_kt is not none %}Model gust maximum: {{ '%.1f'|format(row.context.gust.peak_kt) }} kt over {{ row.context.gust.interval_start_utc }} to {{ row.context.gust.interval_end_utc }}. This preceding maximum is context for a future gust forecast; enter any chosen G group in the wind field.{% else %}Gust maximum unavailable at this exact valid time; review the native guidance above.{% endif %}</p>
         <p>Independent cloud fractions: {% for name,value in row.context.cloud_fractions.items() %}{{ name }} {% if value is not none %}{{ '%.0f'|format(value*100) }}%{% else %}unknown{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}. These do not supply cloud bases or additive layers.<br>
           2 m temperature: {% if row.context.temperature_c.temperature2 is not none %}{{ '%.1f'|format(row.context.temperature_c.temperature2) }} °C{% else %}unknown{% endif %}; dewpoint: {% if row.context.temperature_c.dewpoint2 is not none %}{{ '%.1f'|format(row.context.temperature_c.dewpoint2) }} °C{% else %}unknown{% endif %}. CAPE: {{ row.context.cape_j_kg if row.context.cape_j_kg is not none else 'unknown' }} J/kg (context only).</p>
         <p>Visibility: {{ row.visibility.status }}; weather: {{ row.weather.status }}; sky: {{ row.sky.status }}.{% if row.sky.value %} Ceiling: {{ row.sky.value.ceiling_state|replace('_',' ') }}{% if row.sky.value.ceiling_ft_agl is not none %}, {{ row.sky.value.ceiling_ft_agl }} ft AGL{% endif %}.{% endif %}</p>
@@ -63,94 +107,26 @@
       </details>
       <button type="submit">Rebuild draft from reviewed elements</button>
     </form>
-    <p>Free-text edits below do not change the element form or original model guidance. Rebuilding uses the element form; make free-text adjustments after rebuilding.</p>
+    <p>Free-text edits do not change the element form or original model guidance. Rebuilding uses the element form; make free-text adjustments after rebuilding.</p>
     <details><summary>Element quality and original / forecaster contributions</summary><pre>{{ product|tojson(indent=2) }}</pre></details>
-  </section>
+  </details>
   <script src="{{ url_for('static',filename='review.js') }}" defer></script>
   {% endif %}
-  <h2>Location and service-domain review</h2>
+  <details class="review-panel">
+    <summary>Location and service-domain review</summary>
   <p><strong>{{ data.domain.classification }}</strong>: {{ data.domain.message }}<br>
     Recorded disposition: {{ data.domain.disposition }}. This records the forecaster's selection; it does not establish operational coverage.<br>
     Snapshot: {{ data.domain.snapshot }}.</p>
   <p>Reference sources: {% for source in data.domain.sources %}<a href="{{ source }}" rel="noopener">{{ source }}</a> {% endfor %}</p>
   {% if location_map %}<img class="meteogram" src="data:image/png;base64,{{ location_map }}" alt="Requested location and candidate aviation reference regions">{% endif %}
   <p>Model elevation: {% if data.model_elevation.value is not none %}{{ '%.1f'|format(data.model_elevation.value) }} geopotential m{% else %}Unknown{% endif %}. Model orography is not station elevation; it is not used to convert flight levels to AGL or MSL.</p>
-  <h2>Original model — exact requested-time guidance</h2>
-  <p>Continuous-field time interpolation uses two adjacent native slots no more than three hours apart. Missing native samples remain gaps. Categorical weather, cloud cover, precipitation and interval maxima are not interpolated.</p>
-  <table><thead><tr><th>UTC valid time</th><th>10 m wind / time source</th><th>Optional FL winds (true direction/knots)</th></tr></thead><tbody>
-  {% for row in data.window_rows %}<tr>
-    <td>{{ row.valid_utc }}{% if row.support_only %} (end support only){% endif %}</td>
-    <td>{{ wind_text(row.fields) or 'Unavailable — review required' }}<br>
-      {% if row.interpolated %}Interpolated boundary; initial weather/sky require review.<br>{% for name in ['u10', 'v10'] %}{% set field = row.fields.get(name, {}) %}{{ name }}: {{ field.status }}{% if field.provenance and field.provenance.source_times_utc %}; {{ field.provenance.source_times_utc|join(' → ') }}{% else %}; {{ field.reason }}{% endif %}<br>{% endfor %}{% else %}Native model time{% endif %}</td>
-    <td>{% for level in row.flight_levels %}FL{{ '%03d'|format(level.flight_level) }} — {% if level.status == 'derived' %}{{ wind_components(level.u, level.v) }}{% else %}Unavailable: {{ level.reason }}{% endif %}<br>Target {{ '%.2f'|format(level.pressure_pa / 100) }} hPa; brackets {{ level.provenance.bracket_hpa|join(' / ') }} hPa<br>{% else %}Not requested{% endfor %}</td>
-  </tr>{% endfor %}</tbody></table>
-  {% endif %}
-  <h2>Saved forecast text{% if document %} — version {{ document.version }}{% endif %}</h2>
-  {% if review_id %}
-  <p>Request metadata is fixed above and included in the text download. Edit the forecast body below; use Remarks: for optional plain-language notes. FL winds use full UTC times and plain-language direction/speed. Missing optional winds can be explicitly described as unavailable with a reason.</p>
-  <form action="{{ url_for('web.save_text',identifier=review_id) }}" method="post">
-    <input type="hidden" name="revision" value="{{ revision }}">
-  {% else %}<form action="{{ url_for('web.transmit') }}" method="post">{% endif %}
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <label for="taf_content">Spot forecast text</label>
-    <textarea id="taf_content" name="taf_content" class="taf-editor" rows="15" required>{{ report }}</textarea>
-    {% if review_id %}
-    <button type="submit" name="action" value="save">Save text as draft</button>
-    <button type="submit" name="action" value="draft">Download draft</button>
-    {% if not finalization %}<fieldset>
-      <legend>Approve this saved version</legend>
-      <p>Save text edits before finalizing. Finalization checks structure, required elements, timing and placeholders; meteorological judgment and coordination remain the forecaster's responsibility.</p>
-      <label for="service_disposition">Service responsibility / coordination</label>
-      <select id="service_disposition" name="service_disposition">
-        {% for value,label in [('pending','Review pending'),('awc_coordinated','AWC service verified / coordination completed'),('aawu_redirect','AAWU redirect / coordination required'),('other_office_coordination','Other-office coordination required')] %}
-        <option value="{{ value }}" {% if (finalization and finalization.attestation.service_disposition==value) or (not finalization and data.domain.disposition==value) %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <label for="coordination_note">Coordination / service verification note</label>
-      <input id="coordination_note" type="text" name="coordination_note" maxlength="500" value="{{ finalization.attestation.coordination_note if finalization else '' }}">
-      <p>The reference geometry does not establish the spot-service boundary. Follow the AAWU redirect procedure where applicable; this approval does not authorize a routing exception.</p>
-      <label class="checkbox-label"><input type="checkbox" name="approve" value="yes"> I approve this saved forecast version after reviewing its location, UTC validity, service responsibility, winds/FL winds, visibility, weather (including none expected), and sky.</label>
-      <button type="submit" name="action" value="finalize">Finalize saved version</button>
-    </fieldset>{% endif %}
-    {% else %}<button type="submit" class="btn-transmit">Download edited draft</button>{% endif %}
-  </form>
-  {% if candidate_text %}
-  <details><summary>Complete saved text, including request identification</summary><pre>{{ candidate_text }}</pre></details>
-  {% endif %}
-  {% if finalization %}
-  <section class="finalized-export">
-    <h2>Approved version {{ finalization.approved_version }}</h2>
-    <p><a href="{{ url_for('web.final_text',identifier=review_id,version=finalization.approved_version) }}">Download approved UTF-8 text</a> · <a href="{{ url_for('web.final_package',identifier=review_id,version=finalization.approved_version) }}">Download archive package (ZIP)</a></p>
-    <p>The package contains the exact approved text, provenance/quality JSON and separately identified original-model and reviewed-forecast charts. Place it in the established NAOC folder using the local process. No archive write or external transmission has occurred.</p>
-    <pre class="approved-text">{{ finalization.text }}</pre>
-  </section>
+  </details>
   {% endif %}
   {% if forecast_chart %}
   <h2>{% if finalization %}Approved text forecast{% else %}Forecaster draft{% endif %} — ceiling display</h2>
   <p>{{ forecast_basis }}. Ceiling states are separate from physical heights; FEW/SCT have no ceiling. Triangles mark known ceilings above 12,000 ft AGL. Dashed intervals show conditional known ceilings; the text retains all conditional states.</p>
   <img class="meteogram" src="data:image/png;base64,{{ forecast_chart }}" alt="Forecaster forecast ceiling and ceiling-state timeline">
   <table><thead><tr><th>Full UTC valid time</th><th>Prevailing ceiling state</th><th>Ceiling (ft AGL)</th></tr></thead><tbody>{% for row in forecast_ceiling %}<tr><td>{{ row.valid_utc }}</td><td>{{ row.state|replace('_',' ') }}</td><td>{{ row.height if row.height is not none else 'Not a numeric height' }}</td></tr>{% endfor %}</tbody></table>
-  {% endif %}
-  {% if chart %}
-  <h2>Original model guidance</h2>
-  <p>Text edits do not change this chart.</p>
-  <img class="meteogram" src="data:image/png;base64,{{ chart }}" alt="Original model guidance time series">
-  {% endif %}
-  {% if guidance %}
-  <h2>Verified native-time guidance</h2>
-  <p>Support-only rows bracket the requested period. This table preserves native nearest-grid-point samples. Requested-time interpolation is shown separately above.</p>
-  <table>
-    <thead><tr><th>UTC valid time</th><th>Wind</th><th>Gust maximum (kt) / UTC interval</th><th>Total cloud (%)</th><th>Instant precipitation (mm/h)</th><th>Source / unresolved fields</th></tr></thead>
-    <tbody>{% for row in guidance %}<tr>
-      <td>{{ row.valid_utc }}{% if row.support_only %} (support only){% endif %}</td>
-      <td>{{ row.wind if row.wind is not none else 'Missing' }}</td>
-      <td>{% if row.gust is not none %}{{ '%.1f'|format(row.gust) }}<br>{{ row.gust_interval[0] }} to {{ row.gust_interval[1] }}{% else %}Unavailable{% endif %}</td>
-      <td>{{ '%.1f'|format(row.cloud) if row.cloud is not none else 'Missing' }}</td>
-      <td>{{ '%.3f'|format(row.rate) if row.rate is not none else 'Missing' }}</td>
-      <td>{{ row.providers|join(', ') }}<br>{{ row.problems|join('; ') }}</td>
-    </tr>{% endfor %}</tbody>
-  </table>
-  <details><summary>All field values, quality and source metadata</summary><pre>{{ data|tojson(indent=2) }}</pre></details>
   {% endif %}
 </main>
 {% endblock %}

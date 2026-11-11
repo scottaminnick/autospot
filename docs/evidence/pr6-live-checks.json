@@ -1,0 +1,148 @@
+{
+  "application_commit": "a62f58787379336165868a1b2546026c9b7f6490",
+  "scope": "local live ECMWF IFS checks",
+  "historical_replay": {
+    "latitude": 24.71,
+    "longitude": -77.76,
+    "as_of_utc": "2026-11-09T05:59:00+00:00",
+    "measurements": [
+      {
+        "check": "cold",
+        "elapsed_seconds": 37.707,
+        "checked_at": "2026-11-11T05:34:00.642571+00:00",
+        "cycle_utc": "2026-11-09T00:00:00+00:00",
+        "request_start_utc": "2026-11-09T12:00:00+00:00",
+        "request_end_utc": "2026-11-10T12:00:00+00:00",
+        "counts": {
+          "direct": 144,
+          "derived": 0,
+          "manual": 0,
+          "unsupported": 27,
+          "missing": 0,
+          "invalid": 0,
+          "not_applicable": 0
+        },
+        "cache_hits": 0,
+        "providers": {
+          "ecmwf": 144
+        },
+        "failure_reasons": {},
+        "retained_raw_messages_matched": 7,
+        "retained_raw_messages_mismatched": 0,
+        "native_wind_steps_hours": [
+          12,
+          15,
+          18,
+          21,
+          24,
+          27,
+          30,
+          33,
+          36
+        ],
+        "expiration_support_only": true
+      },
+      {
+        "check": "warm",
+        "elapsed_seconds": 0.169,
+        "checked_at": "2026-11-11T05:34:00.815031+00:00",
+        "cycle_utc": "2026-11-09T00:00:00+00:00",
+        "request_start_utc": "2026-11-09T12:00:00+00:00",
+        "request_end_utc": "2026-11-10T12:00:00+00:00",
+        "counts": {
+          "direct": 144,
+          "derived": 0,
+          "manual": 0,
+          "unsupported": 27,
+          "missing": 0,
+          "invalid": 0,
+          "not_applicable": 0
+        },
+        "cache_hits": 144,
+        "providers": {
+          "ecmwf": 144
+        },
+        "failure_reasons": {},
+        "retained_raw_messages_matched": 7,
+        "retained_raw_messages_mismatched": 0,
+        "native_wind_steps_hours": [
+          12,
+          15,
+          18,
+          21,
+          24,
+          27,
+          30,
+          33,
+          36
+        ],
+        "expiration_support_only": true
+      }
+    ]
+  },
+  "local_https": {
+    "latitude": 39.3,
+    "longitude": -94.71,
+    "peak_memory_method": "sum of process-tree RSS sampled every 200 ms; may count shared pages twice",
+    "runs": [
+      {
+        "workers": 1,
+        "peak_tree_summed_rss_mib": 221.1,
+        "checked_at": "2026-11-11T05:39:11.238825+00:00",
+        "request_start_utc": "2026-11-11T06:00:00+00:00",
+        "duration_hours": 24,
+        "flight_levels": "",
+        "checks": [
+          {
+            "attempt": "first",
+            "seconds_to_review": 52.995,
+            "submit_request_id": "0880cb6050794ca29eb0c136a0a96809",
+            "cycle_utc": "2026-11-10T18:00:00+00:00"
+          },
+          {
+            "attempt": "repeat",
+            "seconds_to_review": 11.869,
+            "submit_request_id": "c18f4478a3c74fd1bed4b6dff6dc7b5b",
+            "cycle_utc": "2026-11-10T18:00:00+00:00"
+          }
+        ],
+        "isolated_empty_cache_at_start": true,
+        "worker_recycling_observed": true
+      },
+      {
+        "workers": 2,
+        "peak_tree_summed_rss_mib": 243.7,
+        "checked_at": "2026-11-11T05:40:12.147414+00:00",
+        "request_start_utc": "2026-11-11T07:00:00+00:00",
+        "duration_hours": 6,
+        "flight_levels": "30,450",
+        "checks": [
+          {
+            "attempt": "first",
+            "seconds_to_review": 45.629,
+            "submit_request_id": "cbda3c5eb8154e5190980c0ae9fdfc68",
+            "cycle_utc": "2026-11-10T18:00:00+00:00"
+          },
+          {
+            "attempt": "repeat",
+            "seconds_to_review": 14.073,
+            "submit_request_id": "c8d4dd22ffb4485d8d093fbfd019f6ff",
+            "cycle_utc": "2026-11-10T18:00:00+00:00"
+          }
+        ],
+        "isolated_empty_cache_at_start": true,
+        "worker_recycling_observed": true
+      }
+    ]
+  },
+  "newer_cycle_probe": {
+    "cycle_utc": "2026-11-11T00:00:00+00:00",
+    "step_hours": 6,
+    "provider_responses": {
+      "ecmwf": 404,
+      "aws": 404,
+      "google": 404
+    },
+    "elapsed_seconds": 12.107
+  }
+}

@@ -25,7 +25,7 @@ jobs:
       - name: Check dependency consistency
         run: python -m pip check
       - name: Check Python errors
-        run: ruff check app.py request_validation.py web_security.py weather tests scripts/check_ecmwf_live.py --select E9,F
+        run: ruff check app.py request_validation.py web_security.py weather tests scripts/check_ecmwf_live.py scripts/check_ecmwf_reference.py scripts/check_pilot_web.py --select E9,F
       - name: Offline regression tests
         run: python -m unittest discover -s tests -v
       - name: Check source geometry reference locations
